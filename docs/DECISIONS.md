@@ -5,3 +5,7 @@
 - 段階0: 雛形の .gitignore（.env*）では .env.example が無視されるため、!.env.example を足してひな形だけコミットできるようにした。
 - 段階1: NG語リストの持ち方は `export const NG_WORDS: string[]` とし、仕様の語順のまま並べた。
 - 段階1: `computeMetrics` は引数を `Record<string, Assignment>` 1つにし、人数・タグ人数・要確認まで中で数える形にした。
+- 段階2: ダミー回答の型は `SampleAnswer{name,affiliation,category,intro,hobby,consent}` とし、区分はForms記入文言のまま持たせた。
+- 段階2: 区分判定が字面一致のため、学生の文言は「学部生」でなく「学生」「大学院学生」にした（「学部生」は「学生」を含まない）。
+- 段階2: 6人未満・300人超えは `toParticipants` が日本語メッセージの Error を投げ、画面側で表示する形にした。
+- 段階2: sample-200は種20261009の乱数で組み合わせ、同意なしは約5%（11人）になるようにした。
