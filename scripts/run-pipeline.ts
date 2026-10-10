@@ -3,11 +3,12 @@
 // npm run pipeline -- --file public/samples/sample-40.xlsx [--mock] [--out private/result.json] [--publish src/data/published.json] [--no-mask]
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { EVENT, DEFAULT_PRINT_OPTIONS } from '../src/config/event';
+import { DEFAULT_PRINT_OPTIONS } from '../src/config/event';
 import { guessColumns, readSheet, toParticipants } from '../src/lib/import/forms';
 import { computeMetrics } from '../src/lib/metrics';
 import { emptySnapshot, runGeneration } from '../src/lib/pipeline/run';
-import type { AppState, LlmCallLog, PublishedData } from '../src/lib/types';
+import { buildPublishedData } from '../src/lib/publish';
+import type { AppState, LlmCallLog } from '../src/lib/types';
 
 interface Args {
   file: string;
@@ -115,24 +116,15 @@ async function main(): Promise<void> {
   }
 
   if (args.publish) {
-    const sharedTags = snap.activeTagIds
-      .map((tid) => ({ label: labelById.get(tid) ?? tid, count: counts.get(tid) ?? 0 }))
-      .sort((a, b) => b.count - a.count);
-    const published: PublishedData = {
-      version: 1,
-      eventName: EVENT.eventName,
-      generatedAt: now,
-      stickers: participants.map((p, i) => ({
-        id: p.id,
-        name: args.noMask ? p.name : `参加者${String(i + 1).padStart(2, '0')}`,
-        affiliation: args.noMask ? p.affiliation : p.category,
-        personalTag: snap.assignments[p.id]?.personalTag ?? '',
-        sharedTags: (snap.assignments[p.id]?.sharedTagIds ?? []).map((tid) => labelById.get(tid) ?? tid),
-      })),
-      sharedTags,
-      metrics,
+    const published = buildPublishedData({
+      participants,
+      assignments: snap.assignments,
+      candidates: snap.candidates,
+      activeTagIds: snap.activeTagIds,
       summary: snap.summary,
-    };
+      maskNames: !args.noMask,
+      generatedAt: now,
+    });
     const publishPath = path.resolve(args.publish);
     mkdirSync(path.dirname(publishPath), { recursive: true });
     writeFileSync(publishPath, `${JSON.stringify(published, null, 2)}\n`);
