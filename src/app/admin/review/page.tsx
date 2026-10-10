@@ -1,31 +1,64 @@
 // src/app/admin/review/page.tsx
-// 確認と差し替え、ビフォー・アフター。編集すると指標とシールがすぐ変わる。
+// 確認・修正。数字カード＋参加者の表＋選んだ人の詳細（共有タグタブはU3で作り替える）。
 'use client';
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { FitToWidth } from '@/components/FitToWidth';
-import { MetricsCards } from '@/components/MetricsCards';
+import { TagInput } from '@/components/TagInput';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Card, CardToolbar } from '@/components/ui/Card';
+import { HelpTip } from '@/components/ui/HelpTip';
+import { Notice } from '@/components/ui/Notice';
+import { SearchBox } from '@/components/ui/SearchBox';
+import { Segmented } from '@/components/ui/Segmented';
+import { StatCard } from '@/components/ui/StatCard';
+import { TagChip } from '@/components/ui/TagChip';
+import { showToast } from '@/components/ui/Toast';
+import { IconArrowDown, IconCheck, IconSave, IconSparkle, IconWarning } from '@/components/ui/icons';
 import { PageFooter } from '@/components/PageFooter';
 import { PageHeader } from '@/components/PageHeader';
-import { StickerSet } from '@/components/StickerSet';
-import { TagInput } from '@/components/TagInput';
 import { displayLength, sanitizeTag } from '@/lib/text';
 import { computeMetrics } from '@/lib/metrics';
 import { useHydrated, useStore } from '@/lib/store';
+import type { AppState, Flag } from '@/lib/types';
 
-const FLAG_LABEL: Record<string, string> = {
-  no_answer: '未回答',
-  no_consent: '同意なし',
-  ng_word: 'NG語の疑い',
-  fallback_personal: '代替タグ',
-  fallback_shared: '代替タグ',
+const FLAG_LABEL: Record<Flag, string> = {
+  no_answer: '回答なし',
+  no_consent: '掲載の同意なし',
+  ng_word: '気になる言葉あり',
+  fallback_personal: '自動で補ったタグ',
+  fallback_shared: '自動で補ったタグ',
+};
+
+const HELP = {
+  personal: 'その人だけの話題です。見た人が「それ何ですか？」と聞きたくなる一言にしています。',
+  shared: '会場の何人かと同じになる話題です。全員の回答を見比べて作ります。',
+  mates: '自分と共有タグが1つ以上同じ人の数です。一番少ない人の値を出しています。',
+  encounter: '会場からランダムに2人選んだとき、共有タグが同じである確率です。',
 };
 
 function isTagOk(label: string): boolean {
   const cleaned = sanitizeTag(label);
   const d = displayLength(cleaned);
   return cleaned !== '' && d >= 1 && d <= 12;
+}
+
+function download(filename: string, text: string): void {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function stamp(date: Date): string {
+  const pad = (v: number): string => String(v).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
 }
 
 export default function ReviewPage(): React.JSX.Element {
@@ -36,14 +69,14 @@ export default function ReviewPage(): React.JSX.Element {
   const candidates = useStore((s) => s.candidates);
   const activeTagIds = useStore((s) => s.activeTagIds);
   const assignments = useStore((s) => s.assignments);
-  const summary = useStore((s) => s.summary);
   const updateAssignment = useStore((s) => s.updateAssignment);
   const addPersonalCandidates = useStore((s) => s.addPersonalCandidates);
   const renameSharedTag = useStore((s) => s.renameSharedTag);
 
-  const [tab, setTab] = useState<'tags' | 'people'>('tags');
+  const [tab, setTab] = useState<'tags' | 'people'>('people');
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [jumpId, setJumpId] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [regenError, setRegenError] = useState<{ id: string; message: string } | null>(null);
@@ -110,6 +143,38 @@ export default function ReviewPage(): React.JSX.Element {
     return true;
   });
 
+  const selected =
+    selectedId !== null ? (participants.find((p) => p.id === selectedId && assignments[p.id]) ?? null) : null;
+  const firstFallback =
+    (participants.find((p) => (assignments[p.id]?.flags.length ?? 0) > 0) ?? participants[0]) ?? null;
+  const shown = selected ?? firstFallback;
+  const shownAssignment = shown ? assignments[shown.id] : undefined;
+
+  const answeredCount = participants.filter((p) => p.intro !== '' || p.hobby !== '').length;
+  const noConsentCount = participants.filter((p) => !p.consent).length;
+
+  const saveWork = (): void => {
+    const s = useStore.getState();
+    const snapshot: AppState = {
+      version: 1,
+      participants: s.participants,
+      importedAt: s.importedAt,
+      params: s.params,
+      extractions: s.extractions,
+      candidates: s.candidates,
+      rankings: s.rankings,
+      activeTagIds: s.activeTagIds,
+      assignments: s.assignments,
+      summary: s.summary,
+      progress: s.progress,
+      llmLog: s.llmLog,
+      generatedAt: s.generatedAt,
+      printOptions: s.printOptions,
+    };
+    download(`nametag-state-${stamp(new Date())}.json`, `${JSON.stringify(snapshot, null, 2)}\n`);
+    showToast('作業データを保存しました');
+  };
+
   const changePersonal = (participantId: string, value: string): void => {
     if (!isTagOk(value)) return;
     updateAssignment(participantId, { personalTag: sanitizeTag(value) });
@@ -174,206 +239,348 @@ export default function ReviewPage(): React.JSX.Element {
   };
 
   return (
-    <div className="space-y-6 py-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
         step={3}
         title="確認・修正"
         description="おいとまが作ったタグを見て、気になるものだけ直します。"
+        actions={
+          <Button variant="secondary" icon={<IconSave size={16} />} onClick={saveWork}>
+            作業データを保存
+          </Button>
+        }
       />
-      <h1 className="text-xl font-bold">3 確認</h1>
 
-      <MetricsCards metrics={metrics} />
-      {summary !== '' && <p className="text-sm">{summary}</p>}
-
-      <div className="flex gap-2 text-sm">
-        <button
-          type="button"
-          onClick={() => setTab('tags')}
-          className={`rounded border px-3 py-2 ${tab === 'tags' ? 'bg-gray-900 font-bold text-white' : ''}`}
-        >
-          共有タグ
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('people')}
-          className={`rounded border px-3 py-2 ${tab === 'people' ? 'bg-gray-900 font-bold text-white' : ''}`}
-        >
-          参加者
-        </button>
+      <div className="flex flex-wrap gap-3">
+        <StatCard
+          label="参加者"
+          value={participants.length}
+          unit="人"
+          note={`回答あり ${answeredCount}人・同意なし ${noConsentCount}人`}
+        />
+        <StatCard
+          label="共有タグ"
+          value={metrics.sharedTagCount}
+          unit="個"
+          note={`1つのタグを${params?.minSize ?? metrics.sizeMin}〜${params?.maxSize ?? metrics.sizeMax}人で共有`}
+          help={HELP.shared}
+        />
+        <StatCard
+          label="共通の話題がある人"
+          value={metrics.matesMin}
+          prefix="最少"
+          unit="人"
+          note={`中央値 ${metrics.matesMedian}人`}
+          help={HELP.mates}
+        />
+        <StatCard
+          label="遭遇率"
+          value={Math.round(metrics.encounterRate * 100)}
+          unit="%"
+          note="ランダムな2人に共通タグがある確率"
+          help={HELP.encounter}
+        />
+        <StatCard
+          label="確認が必要"
+          value={metrics.needsReview}
+          unit="人"
+          note={metrics.needsReview > 0 ? '表の黄色い行を見てください' : 'ありません'}
+          tone={metrics.needsReview > 0 ? 'warn' : 'normal'}
+        />
       </div>
 
-      {tab === 'tags' && (
-        <ul className="space-y-3">
-          {sortedTags.map((tid) => {
-            const count = counts.get(tid) ?? 0;
-            const badge =
-              params && count < params.minSize
-                ? 'bg-red-200 text-red-900'
-                : params && count > params.maxSize
-                  ? 'bg-yellow-200 text-yellow-900'
-                  : 'bg-gray-100 text-gray-700';
-            return (
-              <li key={tid} className="rounded border border-gray-200 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <TagInput
-                    value={labelById.get(tid) ?? ''}
-                    ariaLabel={`共有タグ${tid}の名前`}
-                    onChange={(v) => changeTagLabel(tid, v)}
-                  />
-                  <span className={`rounded px-2 py-1 text-xs font-bold ${badge}`}>{count}人</span>
-                </div>
-                <p className="mt-1 text-xs text-gray-600">{candidates.find((c) => c.id === tid)?.covers}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {(memberNames.get(tid) ?? []).map((name) => {
-                    const pid = participants.find((p) => p.name === name)?.id;
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => {
-                          if (pid) setJumpId(pid);
-                          setTab('people');
-                        }}
-                        className="rounded-full bg-gray-100 px-2 py-1 text-xs hover:underline"
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {tab === 'people' && (
-        <>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <button
-              type="button"
-              onClick={() => setNeedsReviewOnly(false)}
-              className={`rounded border px-3 py-1 ${!needsReviewOnly ? 'bg-gray-900 text-white' : ''}`}
-            >
-              すべて
-            </button>
-            <button
-              type="button"
-              onClick={() => setNeedsReviewOnly(true)}
-              className={`rounded border px-3 py-1 ${needsReviewOnly ? 'bg-gray-900 text-white' : ''}`}
-            >
-              要確認のみ
-            </button>
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="名前検索"
-              className="rounded border border-gray-300 px-2 py-1"
+      <div className="flex flex-wrap items-start gap-5">
+        <Card className="min-w-0 flex-[999_1_560px] overflow-hidden">
+          <CardToolbar>
+            <Segmented
+              items={[
+                { key: 'people', label: `参加者 ${participants.length}`, pressed: tab === 'people', onClick: () => setTab('people') },
+                { key: 'tags', label: `共有タグ ${metrics.sharedTagCount}`, pressed: tab === 'tags', onClick: () => setTab('tags') },
+              ]}
             />
-          </div>
+            {tab === 'people' && (
+              <Button
+                variant="warn"
+                size="sm"
+                icon={<IconWarning size={16} />}
+                aria-pressed={needsReviewOnly}
+                onClick={() => setNeedsReviewOnly((v) => !v)}
+                className={needsReviewOnly ? 'ring-2 ring-adm-primary' : ''}
+              >
+                確認が必要な人だけ表示（{metrics.needsReview}）
+              </Button>
+            )}
+            {tab === 'people' && (
+              <span className="ml-auto">
+                <SearchBox value={query} onChange={setQuery} />
+              </span>
+            )}
+          </CardToolbar>
 
-          <ul className="space-y-4">
-            {filteredPeople.map((p) => {
-              const a = assignments[p.id];
-              if (!a) return null;
-              const extraction = extractions[p.id];
-              const sharedOptions = activeTagIds.map((tid) => ({ id: tid, label: labelById.get(tid) ?? tid }));
-              return (
-                <li
-                  key={p.id}
-                  ref={jumpId === p.id ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
-                  className="rounded border border-gray-200 p-3"
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <h3 className="font-bold">ビフォー</h3>
-                      <p className="text-sm">
-                        {p.name}・{p.affiliation}・{p.category}
-                      </p>
-                      {p.intro !== '' && <p className="mt-1 text-sm">{p.intro}</p>}
-                      {p.hobby !== '' && <p className="mt-1 text-sm">{p.hobby}</p>}
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {(extraction?.topics ?? []).map((t) => (
-                          <span key={t} className="rounded-full bg-gray-100 px-2 py-1 text-xs">
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="font-bold">アフター</h3>
-                      <FitToWidth designWidthPx={760}>
-                        <StickerSet preset="label24" personalTag={a.personalTag} sharedTags={a.sharedTagIds.map((tid) => labelById.get(tid) ?? tid)} name={p.name} />
-                      </FitToWidth>
-                      <div className="mt-2 space-y-2 text-sm">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="w-20 shrink-0">個性タグ</span>
-                          <select
-                            value={a.personalTag}
-                            onChange={(e) => changePersonal(p.id, e.target.value)}
-                            className="rounded border border-gray-300 px-2 py-1"
-                            aria-label={`${p.name}の個性タグの候補`}
-                          >
-                            {!extraction?.personalCandidates.includes(a.personalTag) && (
-                              <option value={a.personalTag}>{a.personalTag}（編集中）</option>
-                            )}
-                            {(extraction?.personalCandidates ?? []).map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                          <TagInput value={a.personalTag} ariaLabel={`${p.name}の個性タグ`} onChange={(v) => changePersonal(p.id, v)} />
-                          <button
-                            type="button"
-                            onClick={() => void regeneratePersonal(p.id)}
-                            disabled={regenerating !== null}
-                            className="rounded border px-2 py-1 text-xs disabled:opacity-50"
-                          >
-                            {regenerating === p.id ? '作成中…' : '別案'}
-                          </button>
-                        </div>
-                        {regenError?.id === p.id && <p className="text-xs text-red-700">{regenError.message}</p>}
-                        {([0, 1] as const).map((i) => (
-                          <label key={i} className="flex items-center gap-2">
-                            <span className="w-20 shrink-0">共有タグ{i + 1}</span>
-                            <select
-                              value={a.sharedTagIds[i] ?? ''}
-                              onChange={(e) => changeShared(p.id, i, e.target.value)}
-                              className="rounded border border-gray-300 px-2 py-1"
+          {tab === 'people' ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] border-collapse text-adm-table">
+                  <thead>
+                    <tr className="bg-adm-head text-left text-adm-ink2">
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">名前</th>
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">所属</th>
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">個性タグ</th>
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">共有タグ</th>
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">確認</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPeople.map((p) => {
+                      const a = assignments[p.id];
+                      if (!a) return null;
+                      const isSelected = shown?.id === p.id;
+                      const needsReview = a.flags.length > 0;
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => setSelectedId(p.id)}
+                          ref={
+                            jumpId === p.id
+                              ? (el) => {
+                                  el?.scrollIntoView({ block: 'center' });
+                                }
+                              : undefined
+                          }
+                          className={`cursor-pointer hover:bg-adm-head ${
+                            isSelected ? 'bg-adm-primary-soft' : needsReview ? 'bg-adm-warn-bg' : ''
+                          }`}
+                        >
+                          <td className="border-b border-adm-divider px-4 py-3 align-top">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedId(p.id)}
+                              aria-current={isSelected ? 'true' : undefined}
+                              className="text-left focus-visible:outline-2 focus-visible:outline-adm-primary"
                             >
-                              <option value="">（なし）</option>
-                              {sharedOptions.map((o) => (
-                                <option key={o.id} value={o.id}>
-                                  #{o.label}
-                                </option>
+                              <span className="block font-bold">{p.name}</span>
+                              <span className="block text-adm-xs text-adm-sub">{p.category}</span>
+                            </button>
+                          </td>
+                          <td className="border-b border-adm-divider px-4 py-3 align-top text-adm-ink2">
+                            {p.affiliation}
+                          </td>
+                          <td className="border-b border-adm-divider px-4 py-3 align-top">
+                            <TagChip kind="personal" label={a.personalTag} />
+                          </td>
+                          <td className="border-b border-adm-divider px-4 py-3 align-top">
+                            <div className="flex flex-wrap gap-1.5">
+                              {a.sharedTagIds.map((tid) => (
+                                <TagChip key={tid} kind="shared" label={labelById.get(tid) ?? tid} />
                               ))}
-                            </select>
-                          </label>
-                        ))}
-                        {a.flags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {a.flags.map((f) => (
-                              <span key={f} className="rounded bg-yellow-100 px-2 py-1 text-xs text-yellow-900">
-                                {FLAG_LABEL[f] ?? f}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                            </div>
+                          </td>
+                          <td className="border-b border-adm-divider px-4 py-3 align-top">
+                            {a.flags.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {a.flags.map((f) => (
+                                  <Badge key={f} tone="warn">
+                                    {FLAG_LABEL[f]}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-adm-sub">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-3 text-adm-sm text-adm-sub">
+                {filteredPeople.length}人を表示（全{participants.length}人）
+              </div>
+            </>
+          ) : (
+            <ul className="space-y-3 p-4">
+              {sortedTags.map((tid) => (
+                <li key={tid} className="rounded border border-gray-200 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TagInput
+                      value={labelById.get(tid) ?? ''}
+                      ariaLabel={`共有タグ${tid}の名前`}
+                      onChange={(v) => changeTagLabel(tid, v)}
+                    />
+                    <span className="rounded bg-gray-100 px-2 py-1 text-xs font-bold">{counts.get(tid) ?? 0}人</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">{candidates.find((c) => c.id === tid)?.covers}</p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(memberNames.get(tid) ?? []).map((name) => {
+                      const pid = participants.find((p) => p.name === name)?.id;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            if (pid) {
+                              setJumpId(pid);
+                              setSelectedId(pid);
+                            }
+                            setTab('people');
+                          }}
+                          className="rounded-full bg-gray-100 px-2 py-1 text-xs hover:underline"
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
                   </div>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
+        </Card>
 
-          <Link href="/admin/print" className="inline-block rounded bg-gray-900 px-4 py-2 text-sm font-bold text-white">
-            印刷へ
-          </Link>
-        </>
-      )}
+        <aside
+          aria-label="選んだ人の詳細"
+          className="flex min-w-0 flex-[1_1_340px] flex-col gap-4 rounded-xl border border-adm-line bg-adm-surface p-5"
+        >
+          {shown && shownAssignment ? (
+            <>
+              <div>
+                <div className="text-adm-name font-bold">{shown.name}</div>
+                <div className="text-adm-sm text-adm-sub">
+                  {shown.affiliation}・{shown.category}
+                </div>
+                {shownAssignment.flags.length > 0 && (
+                  <div className="mt-2">
+                    <Notice
+                      tone="warn"
+                      title={shownAssignment.flags.map((f) => FLAG_LABEL[f]).join('・')}
+                    >
+                      タグを見て、問題なければそのままで構いません。
+                    </Notice>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="mb-1.5 text-adm-sm font-bold text-adm-ink2">回答（ビフォー）</div>
+                <div className="rounded-lg bg-adm-head px-3.5 py-3 text-adm-table leading-[1.7]">
+                  {shown.intro !== '' || shown.hobby !== ''
+                    ? shown.intro
+                    : '回答はありません。所属と区分からタグを作りました。'}
+                </div>
+                {shown.hobby !== '' && (
+                  <div className="mt-2 text-adm-sm text-adm-ink2">最近ハマっていること：{shown.hobby}</div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-adm-sm font-bold text-adm-ink2">
+                <IconArrowDown />
+                おいとまが作ったシール（アフター）
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2 rounded-md border border-adm-line-strong px-3 py-2.5">
+                  <TagChip kind="personal" label={shownAssignment.personalTag} size="md" />
+                  <span className="text-adm-xs text-adm-sub">個性タグ</span>
+                </div>
+                {shownAssignment.sharedTagIds.map((tid) => (
+                  <div
+                    key={tid}
+                    className="flex items-center justify-between gap-2 rounded-md border border-adm-line-strong px-3 py-2.5"
+                  >
+                    <TagChip kind="shared" label={labelById.get(tid) ?? tid} size="md" />
+                    <span className="text-adm-xs text-adm-sub">会場に{counts.get(tid) ?? 0}人</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-adm-divider pt-3.5">
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center gap-1 text-adm-sm font-bold text-adm-ink2">
+                    個性タグを選ぶ
+                    <HelpTip text={HELP.personal} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(extractions[shown.id]?.personalCandidates ?? []).map((c) => {
+                      const pressed = shownAssignment.personalTag === c;
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          aria-pressed={pressed}
+                          onClick={() => changePersonal(shown.id, c)}
+                          className={
+                            pressed
+                              ? 'min-h-10 rounded-lg border-2 border-adm-primary bg-adm-primary-soft px-3 text-adm-table font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-adm-primary'
+                              : 'min-h-10 rounded-lg border border-adm-line-strong bg-adm-surface px-3 text-adm-table focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-adm-primary'
+                          }
+                        >
+                          {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-adm-sm text-adm-sub">自分で入力</span>
+                    <TagInput
+                      value={shownAssignment.personalTag}
+                      ariaLabel="個性タグを自分で入力"
+                      onChange={(v) => changePersonal(shown.id, v)}
+                    />
+                  </div>
+                  <div>
+                    <Button
+                      variant="dashed"
+                      size="sm"
+                      icon={<IconSparkle size={16} />}
+                      disabled={regenerating !== null}
+                      onClick={() => void regeneratePersonal(shown.id)}
+                    >
+                      {regenerating === shown.id ? '考えています…' : 'おいとまに別案を出してもらう'}
+                    </Button>
+                  </div>
+                  {regenError?.id === shown.id && <Notice tone="danger" title={regenError.message} />}
+
+                  <div className="flex items-center gap-1 text-adm-sm font-bold text-adm-ink2">
+                    共有タグ
+                    <HelpTip text={HELP.shared} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {([0, 1] as const).map((i) => (
+                      <label key={i} className="flex flex-[1_1_140px] flex-col gap-1">
+                        <span className="text-adm-xs text-adm-sub">{i === 0 ? '1つ目' : '2つ目'}</span>
+                        <select
+                          value={shownAssignment.sharedTagIds[i] ?? ''}
+                          onChange={(e) => changeShared(shown.id, i, e.target.value)}
+                          className="min-h-10 rounded-lg border border-adm-line-strong bg-adm-surface px-2.5 text-adm-table text-adm-ink focus-visible:outline-2 focus-visible:outline-adm-primary"
+                        >
+                          <option value="">（なし）</option>
+                          {sortedTags.map((tid) => (
+                            <option
+                              key={tid}
+                              value={tid}
+                              disabled={shownAssignment.sharedTagIds[1 - i] === tid}
+                            >
+                              {labelById.get(tid) ?? tid}（{counts.get(tid) ?? 0}人）
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <p className="flex items-center gap-1.5 text-adm-xs text-adm-done">
+                <IconCheck size={14} />
+                変更は自動で保存されます
+              </p>
+            </>
+          ) : (
+            <p className="text-adm-sub">表の行を押すと、ここにその人の回答とシールが出ます。</p>
+          )}
+        </aside>
+      </div>
 
       <PageFooter next={{ href: '/admin/print', label: 'シールを印刷' }} />
     </div>
