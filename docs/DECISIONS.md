@@ -28,3 +28,6 @@
 - 段階8: 詳細設定は最初からの生成に使い、続きからは保存中の値を使う。
 - 段階8: noindexを全ページに設定した。
 - 直し: 人の指示でアプリ名を `#おいとま活用中` に変更し、仕様書の3か所も合わせた。
+- UI-U0: 完了条件の「#直書きなし」は新規部品に適用し、Sticker/StickerSheet/configの既存hexは見た目凍結のため残した。
+- UI-U0: Segmented・SearchBox・ConfirmDialogの閉じるボタンにfocus-visible系を足し「必ず守ること」を満たした（仕様のクラスに追加のみ）。
+- UI-U0: StatCardのwarn時は全文字をwarn-inkに切替え、/admin/uiに入力欄の見本を追加し、ConfirmDialogの×はアイコン表の用途に合わせ残した。

@@ -1,5 +1,53 @@
 @import "tailwindcss";
 
+@theme {
+  /* 面と線 */
+  --color-adm-bg: #F2F4F7;
+  --color-adm-surface: #FFFFFF;
+  --color-adm-line: #D9DEE5;
+  --color-adm-line-strong: #C5CDD8;
+  --color-adm-divider: #E6EAF0;
+  --color-adm-head: #F7F8FA;
+  --color-adm-field: #EEF1F5;
+  /* 文字 */
+  --color-adm-ink: #1C2430;
+  --color-adm-ink2: #3F4855;
+  --color-adm-sub: #5A6472;
+  /* 左メニュー */
+  --color-adm-nav: #16314F;
+  --color-adm-nav-ink: #DCE5F1;
+  --color-adm-nav-dim: #B7C6DA;
+  --color-adm-nav-line: #2C4A6E;
+  --color-adm-nav-soft: #22436A;
+  /* 操作 */
+  --color-adm-primary: #1E5AA8;
+  --color-adm-primary-hover: #174A8C;
+  --color-adm-primary-soft: #EDF2F8;
+  --color-adm-done: #3E8E6A;
+  /* 確認が必要 */
+  --color-adm-warn-bg: #FFF8E6;
+  --color-adm-warn-line: #F0C36D;
+  --color-adm-warn-ink: #7A4F00;
+  --color-adm-warn-badge: #FDEBC8;
+  /* 消す・エラー */
+  --color-adm-danger: #B42318;
+  --color-adm-danger-bg: #FEF3F2;
+  --color-adm-danger-line: #F5B5AE;
+  /* タグ（シールと同じ見た目） */
+  --color-tag-personal: #1C2430;
+  --color-tag-shared: #E4572E;
+
+  /* 文字の大きさ */
+  --text-adm-xs: 12px;
+  --text-adm-sm: 13px;
+  --text-adm-table: 14px;
+  --text-adm-body: 15px;
+  --text-adm-lead: 17px;
+  --text-adm-name: 20px;
+  --text-adm-h1: 26px;
+  --text-adm-num: 28px;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
