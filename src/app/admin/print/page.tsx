@@ -5,9 +5,13 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { FitToWidth } from '@/components/FitToWidth';
+import { SHEET_WIDTH_PX, StickerSheet } from '@/components/StickerSheet';
+import { Button } from '@/components/ui/Button';
+import { Card, CardTitle } from '@/components/ui/Card';
+import { Notice } from '@/components/ui/Notice';
+import { IconPrinter } from '@/components/ui/icons';
 import { PageFooter } from '@/components/PageFooter';
 import { PageHeader } from '@/components/PageHeader';
-import { SHEET_WIDTH_PX, StickerSheet } from '@/components/StickerSheet';
 import { SHEET_PRESETS } from '@/config/event';
 import { useHydrated, useStore } from '@/lib/store';
 import type { SheetPresetKey } from '@/lib/types';
@@ -95,118 +99,177 @@ export default function PrintPage(): React.JSX.Element {
     personalTag: assignments[p.id]?.personalTag ?? '',
     sharedTags: (assignments[p.id]?.sharedTagIds ?? []).map((tid) => labelById.get(tid) ?? tid),
   }));
-  const sheetCount = Math.ceil(people.length / SHEET_PRESETS[printOptions.preset].rows);
+  const rowsPerSheet = SHEET_PRESETS[printOptions.preset].rows;
+  const chunks: typeof people[] = [];
+  for (let i = 0; i < people.length; i += rowsPerSheet) {
+    chunks.push(people.slice(i, i + rowsPerSheet));
+  }
 
-  const numField = (
+  const stepField = (
+    axis: 'X' | 'Y',
     label: string,
     value: number,
     min: number,
     max: number,
-    step: number,
     onChange: (v: number) => void,
   ): React.JSX.Element => (
-    <label className="flex items-center gap-2 text-sm">
-      <span className="w-28 shrink-0">{label}</span>
+    <div className="flex items-center gap-1">
+      <span className="w-6 shrink-0 text-adm-sm">{axis}</span>
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-label={`${label}を 0.5mm 小さく`}
+        onClick={() => onChange(clampNum(value - 0.5, min, max))}
+      >
+        −
+      </Button>
       <input
         type="number"
         value={value}
         min={min}
         max={max}
-        step={step}
+        step={0.5}
+        aria-label={label}
         onChange={(e) => onChange(clampNum(Number(e.target.value), min, max))}
-        className="w-24 rounded border border-gray-300 px-2 py-1"
+        className="w-20 min-h-10 rounded-lg border border-adm-line-strong bg-adm-surface px-2.5 text-center text-adm-table text-adm-ink focus-visible:outline-2 focus-visible:outline-adm-primary"
       />
-      <span className="text-xs text-gray-500">mm</span>
-    </label>
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-label={`${label}を 0.5mm 大きく`}
+        onClick={() => onChange(clampNum(value + 0.5, min, max))}
+      >
+        ＋
+      </Button>
+    </div>
   );
 
   return (
-    <div className="space-y-6 py-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
         step={4}
         title="シールを印刷"
         description="1人分のシール3枚が横1行に並びます。印刷したら行ごとに切って、受付で渡します。"
       />
-      <h1 className="text-xl font-bold">4 印刷</h1>
 
-      <section className="no-print space-y-2">
-        <h2 className="font-bold">設定</h2>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="w-28 shrink-0">用紙</span>
-          <select
-            value={printOptions.preset}
-            onChange={(e) => setPrintOptions({ preset: e.target.value as SheetPresetKey })}
-            className="rounded border border-gray-300 px-2 py-1"
+      <div className="flex flex-wrap items-start gap-5">
+        <Card className="flex flex-[1_1_300px] flex-col gap-4 p-5 print:hidden">
+          <div className="flex flex-col gap-2">
+            <span className="text-adm-sm font-bold text-adm-ink2">用紙</span>
+            {(['label24', 'label21'] as const).map((key) => {
+              const preset = SHEET_PRESETS[key];
+              const checked = printOptions.preset === key;
+              return (
+                <label
+                  key={key}
+                  className={`flex items-start gap-3 rounded-lg p-3 ${
+                    checked ? 'border-2 border-adm-primary bg-adm-primary-soft' : 'border border-adm-line-strong'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="sheet-preset"
+                    checked={checked}
+                    onChange={() => setPrintOptions({ preset: key as SheetPresetKey })}
+                    className="mt-1 size-4 accent-adm-primary focus-visible:outline-2 focus-visible:outline-adm-primary"
+                  />
+                  <span>
+                    <span className="block font-bold">{key === 'label24' ? 'A4 24面ラベル' : 'A4 21面ラベル'}</span>
+                    <span className="block text-adm-xs text-adm-sub">
+                      {preset.wMm.toFixed(1)}×{preset.hMm}mm・1枚で{preset.rows}人分
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-adm-sm font-bold text-adm-ink2">位置の調整（mm）</span>
+            {stepField('X', '横の位置', printOptions.offsetXmm, -10, 10, (v) => setPrintOptions({ offsetXmm: v }))}
+            {stepField('Y', '縦の位置', printOptions.offsetYmm, -10, 10, (v) => setPrintOptions({ offsetYmm: v }))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-adm-sm font-bold text-adm-ink2">すき間（mm）</span>
+            {stepField('X', '横のすき間', printOptions.gapXmm, 0, 10, (v) => setPrintOptions({ gapXmm: v }))}
+            {stepField('Y', '縦のすき間', printOptions.gapYmm, 0, 10, (v) => setPrintOptions({ gapYmm: v }))}
+          </div>
+
+          <label className="flex items-center gap-2 text-adm-table">
+            <input
+              type="checkbox"
+              checked={printOptions.showCount}
+              onChange={(e) => setPrintOptions({ showCount: e.target.checked })}
+              className="size-4 accent-adm-primary"
+            />
+            共有タグに会場の人数を出す
+          </label>
+
+          <Button
+            variant="secondary"
+            size="md"
+            icon={<IconPrinter size={16} />}
+            onClick={() => {
+              setTestMode(true);
+              setQueued(true);
+            }}
           >
-            {(Object.keys(SHEET_PRESETS) as SheetPresetKey[]).map((key) => (
-              <option key={key} value={key}>
-                {SHEET_PRESETS[key].label}
-              </option>
+            位置合わせ用の試し刷り
+          </Button>
+          <Button
+            variant="primary"
+            size="lg"
+            icon={<IconPrinter size={16} />}
+            onClick={() => {
+              setTestMode(false);
+              setQueued(true);
+            }}
+            className="w-full"
+          >
+            印刷する
+          </Button>
+
+          <div>
+            <div className="text-adm-sm font-bold">印刷のしかた</div>
+            <ol className="list-decimal pl-5 text-adm-sm text-adm-ink2">
+              <li>Chromeの印刷画面で用紙を「A4」にする</li>
+              <li>余白を「なし」にする</li>
+              <li>倍率を「100%」にする</li>
+              <li>「背景のグラフィック」をオンにする</li>
+            </ol>
+          </div>
+          <Notice tone="info" title="刷ったら行ごとに切り、左のシールの名前を見て本人に渡します。" />
+        </Card>
+
+        <Card className="min-w-0 flex-[999_1_480px] p-5 print:border-0 print:p-0">
+          <CardTitle>
+            A4 {chunks.length}枚（{people.length}人）
+          </CardTitle>
+          <div className="mt-4 flex flex-col gap-4">
+            {chunks.map((rows, i) => (
+              <div key={`${printOptions.preset}-${i}`}>
+                <div className="mb-1 text-adm-xs text-adm-sub print:hidden">用紙 {i + 1}</div>
+                <div className="rounded border border-adm-line bg-white print:border-0">
+                  <FitToWidth designWidthPx={SHEET_WIDTH_PX}>
+                    <StickerSheet
+                      preset={printOptions.preset}
+                      people={rows}
+                      offsetXmm={printOptions.offsetXmm}
+                      offsetYmm={printOptions.offsetYmm}
+                      gapXmm={printOptions.gapXmm}
+                      gapYmm={printOptions.gapYmm}
+                      showCount={printOptions.showCount}
+                      sharedCounts={sharedCounts}
+                      testMode={testMode}
+                    />
+                  </FitToWidth>
+                </div>
+              </div>
             ))}
-          </select>
-        </label>
-        {numField('位置の調整X', printOptions.offsetXmm, -10, 10, 0.5, (v) => setPrintOptions({ offsetXmm: v }))}
-        {numField('位置の調整Y', printOptions.offsetYmm, -10, 10, 0.5, (v) => setPrintOptions({ offsetYmm: v }))}
-        {numField('すき間X', printOptions.gapXmm, 0, 10, 0.5, (v) => setPrintOptions({ gapXmm: v }))}
-        {numField('すき間Y', printOptions.gapYmm, 0, 10, 0.5, (v) => setPrintOptions({ gapYmm: v }))}
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={printOptions.showCount}
-            onChange={(e) => setPrintOptions({ showCount: e.target.checked })}
-          />
-          共有タグに人数を添える
-        </label>
-        <p className="text-sm text-gray-600">
-          A4 {sheetCount}枚に、1行に1人分（個性タグ、共有タグ2つ）が並びます。
-        </p>
-      </section>
-
-      <section className="no-print flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setTestMode(false);
-            setQueued(true);
-          }}
-          className="rounded bg-gray-900 px-4 py-2 text-sm font-bold text-white"
-        >
-          印刷する
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setTestMode(true);
-            setQueued(true);
-          }}
-          className="rounded border px-4 py-2 text-sm"
-        >
-          位置合わせ用の試し刷り
-        </button>
-      </section>
-
-      <section className="no-print rounded border border-gray-200 p-3 text-sm">
-        <h2 className="mb-1 font-bold">案内</h2>
-        <p>Chromeで「送信先：プリンタ（またはPDFに保存）／用紙：A4／余白：なし／倍率：100%／背景のグラフィック：オン」にしてください。</p>
-        <p className="mt-1">行ごとに切って、左のシールの名前を見て渡してください。</p>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="no-print font-bold">プレビュー</h2>
-        <FitToWidth designWidthPx={SHEET_WIDTH_PX}>
-          <StickerSheet
-            preset={printOptions.preset}
-            people={people}
-            offsetXmm={printOptions.offsetXmm}
-            offsetYmm={printOptions.offsetYmm}
-            gapXmm={printOptions.gapXmm}
-            gapYmm={printOptions.gapYmm}
-            showCount={printOptions.showCount}
-            sharedCounts={sharedCounts}
-            testMode={testMode}
-          />
-        </FitToWidth>
-      </section>
+          </div>
+        </Card>
+      </div>
 
       <PageFooter />
     </div>
