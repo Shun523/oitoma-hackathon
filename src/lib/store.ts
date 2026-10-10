@@ -143,6 +143,7 @@ interface StoreActions {
   markGenerated: () => void;
   appendLlmLog: (log: LlmCallLog) => void;
   updateAssignment: (participantId: string, patch: Partial<Assignment>) => void;
+  addPersonalCandidates: (participantId: string, candidates: string[]) => void;
   renameSharedTag: (tagId: string, label: string) => void;
   setPrintOptions: (patch: Partial<PrintOptions>) => void;
   replaceAll: (state: AppState) => void;
@@ -212,6 +213,17 @@ export const useStore = create<StoreState>()(
           const current = s.assignments[participantId];
           if (!current) return {};
           return { assignments: { ...s.assignments, [participantId]: { ...current, ...patch, edited: true } } };
+        }),
+
+      addPersonalCandidates: (participantId: string, candidates: string[]) =>
+        set((s) => {
+          const current = s.extractions[participantId];
+          if (!current) return {};
+          const merged = [...current.personalCandidates];
+          for (const c of candidates) {
+            if (!merged.includes(c)) merged.push(c);
+          }
+          return { extractions: { ...s.extractions, [participantId]: { ...current, personalCandidates: merged.slice(0, 6) } } };
         }),
 
       renameSharedTag: (tagId: string, label: string) =>

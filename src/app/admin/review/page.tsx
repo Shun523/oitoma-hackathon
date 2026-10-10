@@ -36,12 +36,15 @@ export default function ReviewPage(): React.JSX.Element {
   const assignments = useStore((s) => s.assignments);
   const summary = useStore((s) => s.summary);
   const updateAssignment = useStore((s) => s.updateAssignment);
+  const addPersonalCandidates = useStore((s) => s.addPersonalCandidates);
   const renameSharedTag = useStore((s) => s.renameSharedTag);
 
   const [tab, setTab] = useState<'tags' | 'people'>('tags');
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [query, setQuery] = useState('');
   const [jumpId, setJumpId] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [regenError, setRegenError] = useState<{ id: string; message: string } | null>(null);
 
   if (!hydrated) {
     return <p>読み込み中…</p>;
@@ -109,6 +112,51 @@ export default function ReviewPage(): React.JSX.Element {
   const changeTagLabel = (tagId: string, value: string): void => {
     if (!isTagOk(value)) return;
     renameSharedTag(tagId, sanitizeTag(value));
+  };
+
+  const regeneratePersonal = async (participantId: string): Promise<void> => {
+    const p = participants.find((q) => q.id === participantId);
+    const extraction = extractions[participantId];
+    if (!p || regenerating) return;
+    setRegenerating(participantId);
+    setRegenError(null);
+    try {
+      const res = await fetch('/api/llm/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          person: {
+            id: p.id,
+            affiliation: p.affiliation,
+            category: p.category,
+            intro: p.intro,
+            hobby: p.hobby,
+            topics: extraction?.topics ?? [],
+          },
+          avoid: extraction?.personalCandidates ?? [],
+        }),
+      });
+      if (!res.ok) {
+        let message = '別案を作れませんでした';
+        try {
+          const data = (await res.json()) as { message?: unknown };
+          if (typeof data?.message === 'string' && data.message !== '') message = data.message;
+        } catch {
+          // 既定の文言のまま
+        }
+        setRegenError({ id: participantId, message });
+        return;
+      }
+      const data = (await res.json()) as { personal?: string[] };
+      addPersonalCandidates(participantId, (data.personal ?? []).filter(isTagOk).map(sanitizeTag));
+    } catch {
+      setRegenError({
+        id: participantId,
+        message: 'おいとまに接続できません。学内ネットワークかOU-VPNにつないでいるか確認してください',
+      });
+    } finally {
+      setRegenerating(null);
+    }
   };
 
   return (
@@ -258,7 +306,16 @@ export default function ReviewPage(): React.JSX.Element {
                             ))}
                           </select>
                           <TagInput value={a.personalTag} ariaLabel={`${p.name}の個性タグ`} onChange={(v) => changePersonal(p.id, v)} />
+                          <button
+                            type="button"
+                            onClick={() => void regeneratePersonal(p.id)}
+                            disabled={regenerating !== null}
+                            className="rounded border px-2 py-1 text-xs disabled:opacity-50"
+                          >
+                            {regenerating === p.id ? '作成中…' : '別案'}
+                          </button>
                         </div>
+                        {regenError?.id === p.id && <p className="text-xs text-red-700">{regenError.message}</p>}
                         {([0, 1] as const).map((i) => (
                           <label key={i} className="flex items-center gap-2">
                             <span className="w-20 shrink-0">共有タグ{i + 1}</span>

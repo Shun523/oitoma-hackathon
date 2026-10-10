@@ -132,7 +132,8 @@ export async function runGeneration(args: {
   // 段階1：話題の読み取り（extractions にない人だけ）
   setPhase('extract', 'running', { startedAt: Date.now() });
   const missingExtract = participants.filter((p) => !snap.extractions[p.id]);
-  await mapLimit(chunk(missingExtract, PIPELINE.extractBatchSize), PIPELINE.concurrency, async (batch) => {
+  try {
+    await mapLimit(chunk(missingExtract, PIPELINE.extractBatchSize), PIPELINE.concurrency, async (batch) => {
     checkAborted();
     const inputs: ExtractInput[] = batch.map((p) => ({
       id: p.id,
@@ -159,6 +160,13 @@ export async function runGeneration(args: {
     if (phase) phase.done = participants.filter((p) => snap.extractions[p.id]).length;
     emit(makeLog('extract', meta));
   });
+  } catch (e) {
+    if (!signal?.aborted) {
+      setPhase('extract', 'error', { message: e instanceof Error ? e.message : String(e) });
+      emit();
+    }
+    throw e;
+  }
   setPhase('extract', 'done', { finishedAt: Date.now() });
   emit();
 
@@ -192,7 +200,8 @@ export async function runGeneration(args: {
   // 段階3：タグの当てはまり順（rankings にない人だけ）
   setPhase('rank', 'running', { startedAt: Date.now() });
   const missingRank = participants.filter((p) => !snap.rankings[p.id]);
-  await mapLimit(chunk(missingRank, PIPELINE.rankBatchSize), PIPELINE.concurrency, async (batch) => {
+  try {
+    await mapLimit(chunk(missingRank, PIPELINE.rankBatchSize), PIPELINE.concurrency, async (batch) => {
     checkAborted();
     const inputs: RankInput[] = batch.map((p) => ({
       id: p.id,
@@ -211,6 +220,13 @@ export async function runGeneration(args: {
     if (phase) phase.done = participants.filter((p) => snap.rankings[p.id]).length;
     emit(makeLog('rank', meta));
   });
+  } catch (e) {
+    if (!signal?.aborted) {
+      setPhase('rank', 'error', { message: e instanceof Error ? e.message : String(e) });
+      emit();
+    }
+    throw e;
+  }
   setPhase('rank', 'done', { finishedAt: Date.now() });
   emit();
 
@@ -237,7 +253,8 @@ export async function runGeneration(args: {
     const activeTags = snap.candidates.filter((c) => activeIds.includes(c.id));
     const shorts = shortIds.map((id) => byId.get(id)!).filter(Boolean);
     const extraRank: Record<string, string[]> = {};
-    await mapLimit(chunk(shorts, PIPELINE.rankBatchSize), PIPELINE.concurrency, async (batch) => {
+    try {
+      await mapLimit(chunk(shorts, PIPELINE.rankBatchSize), PIPELINE.concurrency, async (batch) => {
       checkAborted();
       const inputs: RankInput[] = batch.map((p) => ({
         id: p.id,
@@ -251,6 +268,13 @@ export async function runGeneration(args: {
       }
       emit(makeLog('rank', meta));
     });
+    } catch (e) {
+      if (!signal?.aborted) {
+        setPhase('assign', 'error', { message: e instanceof Error ? e.message : String(e) });
+        emit();
+      }
+      throw e;
+    }
     for (const pid of shortIds) {
       const have = [...(heldTags[pid] ?? [])];
       for (const tid of extraRank[pid] ?? []) {

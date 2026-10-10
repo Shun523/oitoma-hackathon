@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# #おいとま活用中（交流会の名札に「話題」を足すアプリ）
 
-## Getting Started
+Formsの回答Excelを取り込み、おいとまで「個性タグ1つ＋共有タグ2つ」を作り、A4のラベル用紙に「話題シール」として印刷します。詳しい仕様は `docs/spec.md` を見てください。
 
-First, run the development server:
+おいとまのAPIキーと実際の回答データは、コード・コミット・AIへの指示文に書かないでください。Contributor Free版のAIはプロンプトと出力が学習に使われる条件で動いています。
+
+## すぐ試す（おいとまなし）
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run build && npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Chromeで `http://127.0.0.1:3000/admin` を開きます（`/admin` は `/admin/import` に送ります）。`LLM_MODE` が未設定でキーもないため、偽のおいとま（mock）で全機能が動きます。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 学内のPCでのセットアップ
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+生成と印刷は、学内ネットワークかOU-VPNにつないだPCで行います。
 
-## Learn More
+```bash
+git clone <このリポジトリ>
+cd <フォルダ>
+npm install
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+`.env.local` を編集します（このファイルはgitに入れません）：
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+LLM_MODE=live
+OITOMA_BASE_URL=https://…/ai/v1
+OITOMA_API_KEY=<おいとまで発行したキー>
+OITOMA_MODEL=qwen3.8-27b-it
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`OITOMA_API_KEY` が空なら、導入手順で設定したユーザー環境変数 `OKAYAMA_API_KEY` を使います。`OITOMA_JSON_MODE` と `OITOMA_EXTRA_BODY` は分からなければ既定のままでかまいません（受け付けない場合は自動で外して送り直します）。
 
-## Deploy on Vercel
+## おいとまの接続確認
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+学内ネットワークかOU-VPNにつないで実行します：
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run llm:check
+```
+
+モデル一覧、2つのモデルの応答、ダミー3人の話題読み取りを順に試し、最後に `.env.local` に書くとよい値を表示します。すべて成功なら終了コード0です。
+
+## 生成から印刷まで
+
+```bash
+npm run build && npm start
+```
+
+Chromeで `http://127.0.0.1:3000/admin` を開きます。
+
+1. **取り込み**：Formsの「Excelで開く」で落としたxlsxを選ぶか、「サンプル40人」で試します。列の割り当てを確かめて「この内容で取り込む」を押します。
+2. **生成**：「タグを一括生成」を押します。5段階の進捗が出て、終わると候補タグと採用タグが並びます。中止しても終わった分は残り、「続きから生成」で再開できます。
+3. **確認**：回答（左）とシール（右）を見比べ、個性タグの書き換えや共有タグの差し替えをします。「別案」で個性タグの候補を足せます。
+4. **印刷**：用紙を選び、普通紙に「位置合わせ用の試し刷り」をしてラベル用紙と重ね、ずれを位置の調整に入れてから「印刷する」を押します。Chromeの設定は「送信先：プリンタ（またはPDFに保存）／用紙：A4／余白：なし／倍率：100%／背景のグラフィック：オン」です。刷った用紙は行ごとに切って、左のシールの名前を見て渡します。
+5. **データ**：「状態を書き出す」でJSONに保存します（発表用PCで読み込んで使います）。「公開用データを書き出す」で `published.json` を作り、`src/data/published.json` を置き換えてpushすると公開トップに反映されます。イベント後は「すべて消去」を押します。
+
+コマンドラインで通すときは次のようにします：
+
+```bash
+npm run pipeline -- --file public/samples/sample-40.xlsx --mock --out private/result.json
+npm run pipeline -- --mock --file public/samples/sample-40.xlsx --publish src/data/published.json --no-mask
+```
+
+## Vercelへのデプロイ（公開トップだけ）
+
+1. リポジトリを**個人の**GitHubアカウントに置きます（HobbyプランはOrganizationと接続できません）。
+2. Vercelで「Add New → Project」からImportします。Framework PresetはNext.jsのまま。環境変数は設定しません。
+3. デプロイ後に `/` が表示され、`/admin/import` が404になることを確かめます。
+
+## 発表の流れ
+
+1. **取り込み**：FormsのExcelを取り込んで見せます（ネット接続は要りません）。
+2. **生成**：事前に書き出した状態を「生成済みの結果を読み込む」で読み込み、「生成の様子を再生」で5段階を見せます。
+3. **確認**：ビフォー・アフターを2〜3人見せ、指標を読み上げます。
+4. **印刷**：印刷プレビューと、実際に刷って名札に貼ったシールを見せます。
+5. **QR**：スライドのQRから公開トップのデモ用シールを手元のスマホで見てもらいます。
+
+発表用PCでは事前にビルドしておき、ネットを切って読み込み・再生・確認・印刷プレビューまで通ることを確かめます。会場のトラブルに備えてデモの録画も用意します。

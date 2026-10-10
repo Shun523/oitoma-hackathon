@@ -69,6 +69,13 @@ export default function PrintPage(): React.JSX.Element {
   }
 
   const labelById = new Map(candidates.map((c) => [c.id, c.label]));
+  const sharedCounts: Record<string, number> = {};
+  for (const id of Object.keys(assignments)) {
+    for (const tid of assignments[id]?.sharedTagIds ?? []) {
+      const label = labelById.get(tid) ?? tid;
+      sharedCounts[label] = (sharedCounts[label] ?? 0) + 1;
+    }
+  }
   const people = participants.map((p) => ({
     name: p.name,
     personalTag: assignments[p.id]?.personalTag ?? '',
@@ -123,6 +130,14 @@ export default function PrintPage(): React.JSX.Element {
         {numField('位置の調整Y', printOptions.offsetYmm, -10, 10, 0.5, (v) => setPrintOptions({ offsetYmm: v }))}
         {numField('すき間X', printOptions.gapXmm, 0, 10, 0.5, (v) => setPrintOptions({ gapXmm: v }))}
         {numField('すき間Y', printOptions.gapYmm, 0, 10, 0.5, (v) => setPrintOptions({ gapYmm: v }))}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={printOptions.showCount}
+            onChange={(e) => setPrintOptions({ showCount: e.target.checked })}
+          />
+          共有タグに人数を添える
+        </label>
         <p className="text-sm text-gray-600">
           A4 {sheetCount}枚に、1行に1人分（個性タグ、共有タグ2つ）が並びます。
         </p>
@@ -168,6 +183,7 @@ export default function PrintPage(): React.JSX.Element {
             gapXmm={printOptions.gapXmm}
             gapYmm={printOptions.gapYmm}
             showCount={printOptions.showCount}
+            sharedCounts={sharedCounts}
             testMode={testMode}
           />
         </FitToWidth>

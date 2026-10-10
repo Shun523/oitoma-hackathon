@@ -10,7 +10,7 @@ import { httpLlmApi } from '@/lib/pipeline/llm-api';
 import { emptySnapshot, runGeneration, type GenerationSnapshot } from '@/lib/pipeline/run';
 import { computeParams } from '@/lib/sizing';
 import { appStateSchema, useHydrated, useStore } from '@/lib/store';
-import type { LlmCallLog, PhaseProgress } from '@/lib/types';
+import type { GenerationParams, LlmCallLog, PhaseProgress } from '@/lib/types';
 
 const PHASE_META: { key: PhaseProgress['key']; name: string; owner: string }[] = [
   { key: 'extract', name: '話題の読み取り', owner: 'おいとま' },
@@ -61,6 +61,8 @@ export default function GeneratePage(): React.JSX.Element {
 
   const [running, setRunning] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [showDetails, setShowDetails] = useState(false);
+  const [override, setOverride] = useState<Partial<Pick<GenerationParams, 'targetSize' | 'minSize' | 'maxSize' | 'candidateCount'>>>({});
   const [health, setHealth] = useState<{ mode?: string; model?: string; ok?: boolean; ms?: number; error?: string } | null>(null);
   const [checking, setChecking] = useState(false);
   const [replaying, setReplaying] = useState(false);
@@ -90,6 +92,19 @@ export default function GeneratePage(): React.JSX.Element {
 
   const guide = computeParams(participants.length);
   const shown = params ?? guide;
+  const customParams = (n: number): GenerationParams => {
+    const base = computeParams(n);
+    const targetSize = override.targetSize ?? base.targetSize;
+    const minSize = override.minSize ?? Math.max(2, Math.ceil(targetSize / 2));
+    const maxSize = override.maxSize ?? targetSize * 2;
+    return {
+      ...base,
+      targetSize,
+      minSize: Math.min(minSize, maxSize),
+      maxSize: Math.max(minSize, maxSize),
+      candidateCount: override.candidateCount ?? base.candidateCount,
+    };
+  };
   const complete = isComplete(progress);
   const hasPartial = params !== null && !complete;
   const edited = Object.values(assignments).some((a) => a.edited);
@@ -122,7 +137,7 @@ export default function GeneratePage(): React.JSX.Element {
     abortRef.current = controller;
     setRunning(true);
     const base: GenerationSnapshot = fresh
-      ? { ...emptySnapshot(), params: computeParams(participants.length) }
+      ? { ...emptySnapshot(), params: customParams(participants.length) }
       : {
           params: params ?? computeParams(participants.length),
           extractions: { ...extractions },
@@ -177,6 +192,40 @@ export default function GeneratePage(): React.JSX.Element {
         対象{participants.length}人：1タグあたり約{shown.targetSize}人（{shown.minSize}〜{shown.maxSize}人）、
         候補{shown.candidateCount}個
       </p>
+      <div className="text-sm">
+        <button type="button" onClick={() => setShowDetails((v) => !v)} className="underline">
+          {showDetails ? '詳細設定を閉じる' : '詳細設定（目安・下限・上限・候補数を上書き）'}
+        </button>
+        {showDetails && (
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            {(
+              [
+                ['targetSize', '目安（1タグあたりの人数）'],
+                ['minSize', '下限'],
+                ['maxSize', '上限'],
+                ['candidateCount', '候補数'],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2">
+                <span className="w-48 shrink-0">{label}</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={override[key] ?? guide[key]}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setOverride((o) => ({ ...o, [key]: Number.isNaN(v) ? undefined : Math.max(1, Math.floor(v)) }));
+                  }}
+                  className="w-24 rounded border border-gray-300 px-2 py-1"
+                />
+              </label>
+            ))}
+            <p className="text-xs text-gray-500 md:col-span-2">
+              最初から作り直すときに使います。続きからの生成は保存中の値を使います。
+            </p>
+          </div>
+        )}
+      </div>
 
       <section className="flex flex-wrap items-center gap-2 text-sm">
         <button
