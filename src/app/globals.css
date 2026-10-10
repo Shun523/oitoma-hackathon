@@ -23,3 +23,42 @@ body {
   color: var(--foreground);
   font-family: var(--font-noto-sans-jp), Arial, Helvetica, sans-serif;
 }
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    position: relative;
+    break-after: page;
+  }
+  .sheet:last-child {
+    break-after: auto;
+  }
+  /* 画面では縮小表示だが、印刷時は実寸にする */
+  .fit-to-width-outer {
+    height: auto !important;
+    overflow: visible;
+  }
+  .fit-to-width-inner {
+    transform: none !important;
+    width: auto !important;
+  }
+}
+
+.sheet,
+.sticker {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}

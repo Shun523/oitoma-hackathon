@@ -12,6 +12,7 @@ interface StickerSetProps {
   name?: string; // 左のシールの下の小さい字（受付で本人に渡すため）
   sharedCounts?: Record<string, number>; // showCount がオンのときの人数
   showCount?: boolean;
+  direction?: 'responsive' | 'row'; // 用紙の行では常に横1行
 }
 
 export function StickerSet({
@@ -21,6 +22,7 @@ export function StickerSet({
   name,
   sharedCounts,
   showCount,
+  direction = 'responsive',
 }: StickerSetProps): React.JSX.Element {
   const sheet = SHEET_PRESETS[preset];
   const captionFor = (label: string): string => {
@@ -31,7 +33,7 @@ export function StickerSet({
     return '同じタグの人を探そう';
   };
   return (
-    <div className="flex flex-col gap-2 min-[600px]:flex-row" style={{ gap: '2mm' }}>
+    <div className={direction === 'row' ? 'flex flex-row' : 'flex flex-col gap-2 min-[600px]:flex-row'} style={{ gap: '2mm' }}>
       <Sticker preset={preset} kind="personal" label={personalTag} caption={name} />
       {[0, 1].map((i) => {
         const label = sharedTags[i];

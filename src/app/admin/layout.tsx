@@ -18,7 +18,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       <div className="no-print">
         <AdminNav />
       </div>
-      <main className="mx-auto w-full max-w-5xl px-4 pb-16">{children}</main>
+      <main className="mx-auto w-full max-w-5xl px-4 pb-16 print:m-0 print:max-w-none print:p-0">{children}</main>
     </div>
   );
 }
