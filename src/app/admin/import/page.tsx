@@ -4,6 +4,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { PageFooter } from '@/components/PageFooter';
+import { PageHeader } from '@/components/PageHeader';
 import {
   guessColumns,
   readSheet,
@@ -124,6 +126,11 @@ export default function ImportPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 py-6">
+      <PageHeader
+        step={1}
+        title="回答を読み込む"
+        description="参加登録フォーム（Microsoft Forms）の回答をExcelで書き出し、ここで読み込みます。"
+      />
       <h1 className="text-xl font-bold">1 取り込み</h1>
       {importedCount > 0 && <p className="text-sm text-gray-600">取り込み済み：{importedCount}人</p>}
 
@@ -233,6 +240,8 @@ export default function ImportPage(): React.JSX.Element {
           </div>
         </>
       )}
+
+      <PageFooter next={{ href: '/admin/generate', label: 'タグを作る', disabled: importedCount === 0 }} />
     </div>
   );
 }

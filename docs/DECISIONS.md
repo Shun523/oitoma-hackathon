@@ -31,3 +31,6 @@
 - UI-U0: 完了条件の「#直書きなし」は新規部品に適用し、Sticker/StickerSheet/configの既存hexは見た目凍結のため残した。
 - UI-U0: Segmented・SearchBox・ConfirmDialogの閉じるボタンにfocus-visible系を足し「必ず守ること」を満たした（仕様のクラスに追加のみ）。
 - UI-U0: StatCardのwarn時は全文字をwarn-inkに切替え、/admin/uiに入力欄の見本を追加し、ConfirmDialogの×はアイコン表の用途に合わせ残した。
+- UI-U1: アプリ名は仕様書の直書きでなくEVENT.appNameを使った（#おいとま活用中への改名に合わせた）。
+- UI-U1: 空の手順分岐にもPageHeader＋PageFooter（disabled/nextなし）を付け、全状態で骨組みが出るようにした。
+- UI-U1: devのinstant-navigation警告はstoreを使う既存ページ由来でU1前からのものと判断し、手を付けなかった。

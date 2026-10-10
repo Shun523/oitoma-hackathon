@@ -5,6 +5,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { FitToWidth } from '@/components/FitToWidth';
+import { PageFooter } from '@/components/PageFooter';
+import { PageHeader } from '@/components/PageHeader';
 import { SHEET_WIDTH_PX, StickerSheet } from '@/components/StickerSheet';
 import { SHEET_PRESETS } from '@/config/event';
 import { useHydrated, useStore } from '@/lib/store';
@@ -47,11 +49,17 @@ export default function PrintPage(): React.JSX.Element {
   if (participants.length === 0) {
     return (
       <div className="space-y-3 py-6">
+        <PageHeader
+          step={4}
+          title="シールを印刷"
+          description="1人分のシール3枚が横1行に並びます。印刷したら行ごとに切って、受付で渡します。"
+        />
         <h1 className="text-xl font-bold">4 印刷</h1>
         <p>まだ回答を取り込んでいません。</p>
         <Link href="/admin/import" className="inline-block rounded border px-3 py-2 text-sm">
           取り込みへ
         </Link>
+        <PageFooter />
       </div>
     );
   }
@@ -59,11 +67,17 @@ export default function PrintPage(): React.JSX.Element {
   if (Object.keys(assignments).length === 0) {
     return (
       <div className="space-y-3 py-6">
+        <PageHeader
+          step={4}
+          title="シールを印刷"
+          description="1人分のシール3枚が横1行に並びます。印刷したら行ごとに切って、受付で渡します。"
+        />
         <h1 className="text-xl font-bold">4 印刷</h1>
         <p>まだタグを生成していません。</p>
         <Link href="/admin/generate" className="inline-block rounded border px-3 py-2 text-sm">
           生成へ
         </Link>
+        <PageFooter />
       </div>
     );
   }
@@ -108,6 +122,11 @@ export default function PrintPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 py-6">
+      <PageHeader
+        step={4}
+        title="シールを印刷"
+        description="1人分のシール3枚が横1行に並びます。印刷したら行ごとに切って、受付で渡します。"
+      />
       <h1 className="text-xl font-bold">4 印刷</h1>
 
       <section className="no-print space-y-2">
@@ -188,6 +207,8 @@ export default function PrintPage(): React.JSX.Element {
           />
         </FitToWidth>
       </section>
+
+      <PageFooter />
     </div>
   );
 }

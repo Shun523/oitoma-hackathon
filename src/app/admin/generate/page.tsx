@@ -5,6 +5,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { GenerationReplay } from '@/components/GenerationReplay';
+import { PageFooter } from '@/components/PageFooter';
+import { PageHeader } from '@/components/PageHeader';
 import { EVENT } from '@/config/event';
 import { httpLlmApi } from '@/lib/pipeline/llm-api';
 import { emptySnapshot, runGeneration, type GenerationSnapshot } from '@/lib/pipeline/run';
@@ -81,11 +83,17 @@ export default function GeneratePage(): React.JSX.Element {
   if (participants.length === 0) {
     return (
       <div className="space-y-3 py-6">
+        <PageHeader
+          step={2}
+          title="タグを作る"
+          description="おいとまが全員の回答を読み、共有タグと個性タグを作ります。人数によっては数分かかります。"
+        />
         <h1 className="text-xl font-bold">2 生成</h1>
         <p>まだ回答を取り込んでいません。</p>
         <Link href="/admin/import" className="inline-block rounded border px-3 py-2 text-sm">
           取り込みへ
         </Link>
+        <PageFooter next={{ href: '/admin/review', label: '確認・修正', disabled: true }} />
       </div>
     );
   }
@@ -186,6 +194,11 @@ export default function GeneratePage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 py-6">
+      <PageHeader
+        step={2}
+        title="タグを作る"
+        description="おいとまが全員の回答を読み、共有タグと個性タグを作ります。人数によっては数分かかります。"
+      />
       <h1 className="text-xl font-bold">2 生成</h1>
 
       <p className="text-sm">
@@ -390,6 +403,8 @@ export default function GeneratePage(): React.JSX.Element {
       )}
 
       <p className="text-xs text-gray-500">{EVENT.publicNote}</p>
+
+      <PageFooter next={{ href: '/admin/review', label: '確認・修正', disabled: !complete }} />
     </div>
   );
 }

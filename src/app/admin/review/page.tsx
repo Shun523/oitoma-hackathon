@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { FitToWidth } from '@/components/FitToWidth';
 import { MetricsCards } from '@/components/MetricsCards';
+import { PageFooter } from '@/components/PageFooter';
+import { PageHeader } from '@/components/PageHeader';
 import { StickerSet } from '@/components/StickerSet';
 import { TagInput } from '@/components/TagInput';
 import { displayLength, sanitizeTag } from '@/lib/text';
@@ -53,11 +55,17 @@ export default function ReviewPage(): React.JSX.Element {
   if (participants.length === 0) {
     return (
       <div className="space-y-3 py-6">
+        <PageHeader
+          step={3}
+          title="確認・修正"
+          description="おいとまが作ったタグを見て、気になるものだけ直します。"
+        />
         <h1 className="text-xl font-bold">3 確認</h1>
         <p>まだ回答を取り込んでいません。</p>
         <Link href="/admin/import" className="inline-block rounded border px-3 py-2 text-sm">
           取り込みへ
         </Link>
+        <PageFooter next={{ href: '/admin/print', label: 'シールを印刷', disabled: true }} />
       </div>
     );
   }
@@ -65,11 +73,17 @@ export default function ReviewPage(): React.JSX.Element {
   if (Object.keys(assignments).length === 0) {
     return (
       <div className="space-y-3 py-6">
+        <PageHeader
+          step={3}
+          title="確認・修正"
+          description="おいとまが作ったタグを見て、気になるものだけ直します。"
+        />
         <h1 className="text-xl font-bold">3 確認</h1>
         <p>まだタグを生成していません。</p>
         <Link href="/admin/generate" className="inline-block rounded border px-3 py-2 text-sm">
           生成へ
         </Link>
+        <PageFooter next={{ href: '/admin/print', label: 'シールを印刷', disabled: true }} />
       </div>
     );
   }
@@ -161,6 +175,11 @@ export default function ReviewPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 py-6">
+      <PageHeader
+        step={3}
+        title="確認・修正"
+        description="おいとまが作ったタグを見て、気になるものだけ直します。"
+      />
       <h1 className="text-xl font-bold">3 確認</h1>
 
       <MetricsCards metrics={metrics} />
@@ -355,6 +374,8 @@ export default function ReviewPage(): React.JSX.Element {
           </Link>
         </>
       )}
+
+      <PageFooter next={{ href: '/admin/print', label: 'シールを印刷' }} />
     </div>
   );
 }

@@ -4,6 +4,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { PageFooter } from '@/components/PageFooter';
+import { PageHeader } from '@/components/PageHeader';
 import { buildPublishedData } from '@/lib/publish';
 import { appStateSchema, useHydrated, useStore } from '@/lib/store';
 import type { AppState } from '@/lib/types';
@@ -92,6 +94,10 @@ export default function DataPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6 py-6">
+      <PageHeader
+        title="保存・バックアップ"
+        description="作業データをファイルに保存したり、公開ページ用のファイルを書き出したりします。"
+      />
       <h1 className="text-xl font-bold">データ</h1>
       <p className="text-sm text-gray-600">保存中のデータ量：約{sizeKb}KB</p>
 
@@ -146,6 +152,8 @@ export default function DataPage(): React.JSX.Element {
           取り込みへ戻る
         </Link>
       </p>
+
+      <PageFooter />
     </div>
   );
 }
