@@ -118,3 +118,44 @@ export interface PublishedData {
   metrics: Metrics;
   summary: string;
 }
+
+// おいとま連携で共有する型
+export interface ExtractInput {
+  id: string;
+  affiliation: string;
+  category: Category;
+  intro: string;
+  hobby: string;
+}
+export interface ExtractResult {
+  id: string;
+  topics: string[];
+  personal: string[];
+}
+export interface CatalogInput {
+  id: string;
+  category: Category;
+  topics: string[];
+}
+export interface RankInput {
+  id: string;
+  category: Category;
+  topics: string[];
+  hobby: string;
+}
+export interface RankResult {
+  id: string;
+  ranked: string[];
+}
+export interface CallMeta {
+  attempts: number;
+  ms: number;
+}
+
+export interface LlmApi {
+  extract(people: ExtractInput[]): Promise<{ results: ExtractResult[]; missing: string[]; meta: CallMeta }>;
+  catalog(people: CatalogInput[], params: GenerationParams): Promise<{ tags: { label: string; covers: string }[]; meta: CallMeta }>;
+  rank(tags: SharedTag[], people: RankInput[], rankLength: number): Promise<{ results: RankResult[]; missing: string[]; meta: CallMeta }>;
+  summary(tags: { label: string; count: number }[]): Promise<{ text: string; meta: CallMeta }>;
+  regenerate(person: ExtractInput & { topics: string[] }, avoid: string[]): Promise<{ personal: string[]; meta: CallMeta }>;
+}
