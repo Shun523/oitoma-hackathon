@@ -8,6 +8,7 @@ import { TagInput } from '@/components/TagInput';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardToolbar } from '@/components/ui/Card';
+import { CountBar } from '@/components/ui/CountBar';
 import { HelpTip } from '@/components/ui/HelpTip';
 import { Notice } from '@/components/ui/Notice';
 import { SearchBox } from '@/components/ui/SearchBox';
@@ -78,6 +79,8 @@ export default function ReviewPage(): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [jumpId, setJumpId] = useState<string | null>(null);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [draftLabel, setDraftLabel] = useState('');
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [regenError, setRegenError] = useState<{ id: string; message: string } | null>(null);
 
@@ -122,18 +125,22 @@ export default function ReviewPage(): React.JSX.Element {
   }
 
   const metrics = computeMetrics(assignments);
+  const minSize = params?.minSize ?? metrics.sizeMin;
+  const maxSize = params?.maxSize ?? metrics.sizeMax;
   const labelById = new Map(candidates.map((c) => [c.id, c.label]));
   const counts = new Map<string, number>();
   for (const id of Object.keys(assignments)) {
     for (const tid of assignments[id]?.sharedTagIds ?? []) counts.set(tid, (counts.get(tid) ?? 0) + 1);
   }
-  const memberNames = new Map<string, string[]>();
+  const memberIds = new Map<string, string[]>();
   for (const p of participants) {
     for (const tid of assignments[p.id]?.sharedTagIds ?? []) {
-      memberNames.set(tid, [...(memberNames.get(tid) ?? []), p.name]);
+      memberIds.set(tid, [...(memberIds.get(tid) ?? []), p.id]);
     }
   }
+  const participantById = new Map(participants.map((p) => [p.id, p]));
   const sortedTags = [...activeTagIds].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
+  const visibleTags = sortedTags.filter((tid) => (counts.get(tid) ?? 0) > 0);
 
   const filteredPeople = participants.filter((p) => {
     const a = assignments[p.id];
@@ -191,6 +198,17 @@ export default function ReviewPage(): React.JSX.Element {
   const changeTagLabel = (tagId: string, value: string): void => {
     if (!isTagOk(value)) return;
     renameSharedTag(tagId, sanitizeTag(value));
+  };
+
+  const startRename = (tagId: string): void => {
+    setEditingTagId(tagId);
+    setDraftLabel(labelById.get(tagId) ?? '');
+  };
+
+  const commitRename = (tagId: string): void => {
+    if (!isTagOk(draftLabel)) return;
+    changeTagLabel(tagId, draftLabel);
+    setEditingTagId(null);
   };
 
   const regeneratePersonal = async (participantId: string): Promise<void> => {
@@ -262,7 +280,7 @@ export default function ReviewPage(): React.JSX.Element {
           label="共有タグ"
           value={metrics.sharedTagCount}
           unit="個"
-          note={`1つのタグを${params?.minSize ?? metrics.sizeMin}〜${params?.maxSize ?? metrics.sizeMax}人で共有`}
+          note={`1つのタグを${minSize}〜${maxSize}人で共有`}
           help={HELP.shared}
         />
         <StatCard
@@ -313,6 +331,11 @@ export default function ReviewPage(): React.JSX.Element {
             {tab === 'people' && (
               <span className="ml-auto">
                 <SearchBox value={query} onChange={setQuery} />
+              </span>
+            )}
+            {tab === 'tags' && (
+              <span className="ml-auto text-adm-xs text-adm-sub">
+                バー＝人数。縦線＝下限（{minSize}人）。目安は{minSize}〜{maxSize}人
               </span>
             )}
           </CardToolbar>
@@ -399,42 +422,95 @@ export default function ReviewPage(): React.JSX.Element {
               </div>
             </>
           ) : (
-            <ul className="space-y-3 p-4">
-              {sortedTags.map((tid) => (
-                <li key={tid} className="rounded border border-gray-200 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <TagInput
-                      value={labelById.get(tid) ?? ''}
-                      ariaLabel={`共有タグ${tid}の名前`}
-                      onChange={(v) => changeTagLabel(tid, v)}
-                    />
-                    <span className="rounded bg-gray-100 px-2 py-1 text-xs font-bold">{counts.get(tid) ?? 0}人</span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-600">{candidates.find((c) => c.id === tid)?.covers}</p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {(memberNames.get(tid) ?? []).map((name) => {
-                      const pid = participants.find((p) => p.name === name)?.id;
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] border-collapse text-adm-table">
+                  <thead>
+                    <tr className="bg-adm-head text-left text-adm-ink2">
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">共有タグ</th>
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">まとめた話題</th>
+                      <th scope="col" className="w-[260px] whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">人数</th>
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">メンバー</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleTags.map((tid) => {
+                      const count = counts.get(tid) ?? 0;
+                      const members = (memberIds.get(tid) ?? [])
+                        .map((pid) => participantById.get(pid))
+                        .filter((p): p is NonNullable<typeof p> => p !== undefined);
                       return (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() => {
-                            if (pid) {
-                              setJumpId(pid);
-                              setSelectedId(pid);
-                            }
-                            setTab('people');
-                          }}
-                          className="rounded-full bg-gray-100 px-2 py-1 text-xs hover:underline"
-                        >
-                          {name}
-                        </button>
+                        <tr key={tid}>
+                          <td className="border-b border-adm-divider px-4 py-3 align-top">
+                            {editingTagId === tid ? (
+                              <TagInput
+                                value={draftLabel}
+                                ariaLabel="共有タグの名前を変更"
+                                onChange={setDraftLabel}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') commitRename(tid);
+                                  else if (e.key === 'Escape') setEditingTagId(null);
+                                }}
+                              />
+                            ) : (
+                              <div className="flex flex-col items-start gap-1">
+                                <TagChip kind="shared" label={labelById.get(tid) ?? tid} />
+                                <button
+                                  type="button"
+                                  onClick={() => startRename(tid)}
+                                  className="text-adm-xs text-adm-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-adm-primary"
+                                >
+                                  名前を変える
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className="border-b border-adm-divider px-4 py-3 align-top text-adm-ink2">
+                            {candidates.find((c) => c.id === tid)?.covers}
+                          </td>
+                          <td className="w-[260px] border-b border-adm-divider px-4 py-3 align-top">
+                            <div className="flex items-center gap-2">
+                              <div className="min-w-0 flex-1">
+                                <CountBar count={count} min={minSize} max={maxSize} />
+                              </div>
+                              {count < minSize ? (
+                                <Badge tone="danger">少なすぎ</Badge>
+                              ) : count > maxSize ? (
+                                <Badge tone="warn">多すぎ</Badge>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="border-b border-adm-divider px-4 py-3 align-top">
+                            <div className="flex flex-wrap items-center gap-1">
+                              {members.slice(0, 6).map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setJumpId(m.id);
+                                    setSelectedId(m.id);
+                                    setTab('people');
+                                  }}
+                                  className="cursor-pointer rounded-full bg-adm-field px-2 py-0.5 text-adm-sm hover:text-adm-ink focus-visible:outline-2 focus-visible:outline-adm-primary"
+                                >
+                                  {m.name}
+                                </button>
+                              ))}
+                              {members.length > 6 && (
+                                <span className="text-adm-sm text-adm-sub">ほか{members.length - 6}人</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-3 text-adm-sm text-adm-sub">
+                {visibleTags.length}個を表示（人数の多い順）
+              </div>
+            </>
           )}
         </Card>
 
