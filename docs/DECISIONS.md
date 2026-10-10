@@ -12,3 +12,5 @@
 - 段階3: Next.js 16（cacheComponents有効）ではrouteの `dynamic = 'force-dynamic'` が建てられないため削除し、Requestを使うroute handlerは要求時実行のままとした。
 - 段階3: タグ12文字の判定は `displayLength`（半角0.5文字）、話題15文字は文字数で判定した。
 - 段階3: `/api/health?ping=1` のlive確認はおいとまの `/models` を1回呼ぶ形にした。
+- 段階4: 続きからは参加者数が同じなら前回のparamsを使い、違うなら決め直す。
+- 段階4: 公開用データの組み立ては run-pipeline.ts に仮置きし、段階7で publish.ts に移す。
