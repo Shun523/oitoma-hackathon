@@ -113,13 +113,13 @@ export function AdminShell({ children }: { children: ReactNode }): React.JSX.Ele
       </nav>
       <main className="min-w-0 flex-[999_1_560px] px-8 pb-10 pt-7 print:p-0">
         <div className="mx-auto flex max-w-[1120px] flex-col gap-5">
-          {hydrated ? (
-            children
-          ) : (
+          {!hydrated && (
             <Card className="p-5">
               <p className="py-12 text-center text-adm-sub">読み込み中…</p>
             </Card>
           )}
+          {/* 復元前も子を描く（隠すだけ）。描かないとinstant検証がpageを未描画と判定する */}
+          <div className={hydrated ? undefined : 'hidden'}>{children}</div>
         </div>
       </main>
       <ToastHost />
