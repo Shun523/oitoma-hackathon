@@ -6,6 +6,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { computeMetrics } from '../lib/metrics';
 import type { Assignment, Extraction, PhaseProgress, SharedTag } from '../lib/types';
+import { Button } from './ui/Button';
+import { Card, CardTitle } from './ui/Card';
+import { TagChip } from './ui/TagChip';
 
 const DURATIONS = [2500, 2000, 2000, 2500, 1000]; // ①〜⑤の秒配分（合計10秒）
 const TOTAL = DURATIONS.reduce((a, b) => a + b, 0);
@@ -25,10 +28,10 @@ interface ReplayData {
 function actualSec(progress: PhaseProgress[], key: PhaseProgress['key']): string {
   const p = progress.find((q) => q.key === key);
   if (!p?.startedAt || !p?.finishedAt) return '';
-  return `${((p.finishedAt - p.startedAt) / 1000).toFixed(1)}秒`;
+  return `実際 ${Math.max(0, Math.round((p.finishedAt - p.startedAt) / 1000))}秒`;
 }
 
-function formatTotal(progress: PhaseProgress[]): string {
+export function formatTotal(progress: PhaseProgress[]): string {
   const starts = progress.map((p) => p.startedAt).filter((v): v is number => v !== undefined);
   const ends = progress.map((p) => p.finishedAt).filter((v): v is number => v !== undefined);
   if (starts.length === 0 || ends.length === 0) return '';
@@ -36,7 +39,7 @@ function formatTotal(progress: PhaseProgress[]): string {
   return `${Math.floor(sec / 60)}分${sec % 60}秒`;
 }
 
-export function GenerationReplay({ data }: { data: ReplayData }): React.JSX.Element {
+export function GenerationReplay({ data, skipRequest = 0 }: { data: ReplayData; skipRequest?: number }): React.JSX.Element {
   const reduced = useMemo(
     () =>
       typeof window !== 'undefined' &&
@@ -54,6 +57,12 @@ export function GenerationReplay({ data }: { data: ReplayData }): React.JSX.Elem
     }, 100);
     return () => clearInterval(timer);
   }, [reduced, finished]);
+
+  useEffect(() => {
+    if (skipRequest <= 0) return;
+    const timer = setTimeout(() => setElapsed(TOTAL), 0);
+    return () => clearTimeout(timer);
+  }, [skipRequest]);
 
   const n = data.participants.length;
   const boundaries = useMemo(() => {
@@ -84,24 +93,24 @@ export function GenerationReplay({ data }: { data: ReplayData }): React.JSX.Elem
   const af = f(3);
 
   return (
-    <div className="rounded border border-gray-200 p-4">
-      <div className="mb-2 flex items-center gap-3">
-        <h3 className="font-bold">生成の様子（早送り再生）</h3>
+    <Card className="p-5">
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <CardTitle>生成の様子（早送り再生）</CardTitle>
         {!finished && !reduced && (
-          <button type="button" onClick={() => setElapsed(TOTAL)} className="rounded border px-2 py-1 text-sm">
+          <Button variant="secondary" size="sm" onClick={() => setElapsed(TOTAL)}>
             スキップ
-          </button>
+          </Button>
         )}
       </div>
-      <ol className="space-y-3">
+      <ol className="flex flex-col gap-3">
         <li>
-          <div className="text-sm font-bold">
-            {PHASE_NAMES[0]} <span className="font-normal text-gray-500">{actualSec(data.progress, 'extract')}</span>
+          <div className="text-adm-table font-bold">
+            {PHASE_NAMES[0]} <span className="font-normal text-adm-sub">{actualSec(data.progress, 'extract')}</span>
           </div>
-          <div className="text-sm">
+          <div className="text-adm-table">
             {extractCount}/{n}件
           </div>
-          <ul className="mt-1 space-y-1 text-sm text-gray-700">
+          <ul className="mt-1 flex flex-col gap-1 text-adm-table text-adm-ink2">
               {samples.slice(0, Math.min(samples.length, 1 + Math.floor(f(0) * 3))).map((p) => (
                 <li key={p.id}>
                   {p.hobby} → {(data.extractions[p.id]?.topics ?? []).join('、')}
@@ -110,46 +119,45 @@ export function GenerationReplay({ data }: { data: ReplayData }): React.JSX.Elem
             </ul>
         </li>
         <li>
-          <div className="text-sm font-bold">
-            {PHASE_NAMES[1]} <span className="font-normal text-gray-500">{actualSec(data.progress, 'catalog')}</span>
+          <div className="text-adm-table font-bold">
+            {PHASE_NAMES[1]} <span className="font-normal text-adm-sub">{actualSec(data.progress, 'catalog')}</span>
           </div>
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-1 flex flex-wrap gap-1.5">
             {data.candidates.slice(0, catalogShown).map((c) => (
-              <span key={c.id} className="rounded-full bg-gray-100 px-2 py-1 text-xs">
-                #{c.label}
-              </span>
+              <TagChip key={c.id} kind="shared" label={c.label} />
             ))}
           </div>
         </li>
         <li>
-          <div className="text-sm font-bold">
-            {PHASE_NAMES[2]} <span className="font-normal text-gray-500">{actualSec(data.progress, 'rank')}</span>
+          <div className="text-adm-table font-bold">
+            {PHASE_NAMES[2]} <span className="font-normal text-adm-sub">{actualSec(data.progress, 'rank')}</span>
           </div>
-          <div className="text-sm">
+          <div className="text-adm-table">
             {rankCount}/{n}件
           </div>
         </li>
         <li>
-          <div className="text-sm font-bold">
-            {PHASE_NAMES[3]} <span className="font-normal text-gray-500">{actualSec(data.progress, 'assign')}</span>
+          <div className="text-adm-table font-bold">
+            {PHASE_NAMES[3]} <span className="font-normal text-adm-sub">{actualSec(data.progress, 'assign')}</span>
           </div>
           {elapsed >= boundaries[3] && (
             <>
-              <div className="mt-1 flex flex-wrap gap-1">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 {data.candidates.map((c) => {
                   const adopted = data.activeTagIds.includes(c.id);
-                  return (
-                    <span
-                      key={c.id}
-                      className={`rounded-full px-2 py-1 text-xs ${adopted ? 'bg-orange-100 font-bold' : 'bg-gray-50 text-gray-300'}`}
-                    >
+                  return adopted ? (
+                    <span key={c.id} className="inline-flex items-center gap-1">
+                      <TagChip kind="shared" label={c.label} />
+                      <span className="text-adm-xs text-adm-sub">（{counts.get(c.id) ?? 0}人）</span>
+                    </span>
+                  ) : (
+                    <span key={c.id} className="text-adm-xs text-adm-sub">
                       #{c.label}
-                      {adopted && `（${counts.get(c.id) ?? 0}人）`}
                     </span>
                   );
                 })}
               </div>
-              <div className="mt-1 text-sm">
+              <div className="mt-1 text-adm-table">
                 共通タグ仲間（中央値）{Math.round(metrics.matesMedian * af)}人、遭遇率
                 {Math.round(metrics.encounterRate * 100 * af)}%
               </div>
@@ -157,17 +165,17 @@ export function GenerationReplay({ data }: { data: ReplayData }): React.JSX.Elem
           )}
         </li>
         <li>
-          <div className="text-sm font-bold">
-            {PHASE_NAMES[4]} <span className="font-normal text-gray-500">{actualSec(data.progress, 'summary')}</span>
+          <div className="text-adm-table font-bold">
+            {PHASE_NAMES[4]} <span className="font-normal text-adm-sub">{actualSec(data.progress, 'summary')}</span>
           </div>
-          {elapsed >= boundaries[4] && <p className="mt-1 text-sm">{data.summary}</p>}
+          {elapsed >= boundaries[4] && <p className="mt-1 text-adm-table">{data.summary}</p>}
         </li>
       </ol>
       {finished && (
-        <p className="mt-3 text-sm font-bold">
+        <p className="mt-3 text-adm-table font-bold">
           実際の生成：合計{formatTotal(data.progress)}、おいとま呼び出し{data.llmCallCount}回
         </p>
       )}
-    </div>
+    </Card>
   );
 }
