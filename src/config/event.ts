@@ -2,7 +2,7 @@
 import type { PrintOptions } from '../lib/types';
 
 export const EVENT = {
-  appName: '#おいとま使ってます',
+  appName: '#おいとま活用中',
   eventName: 'オープンイノベーションMatch Up 交流会（デモ）',
   audience: '企業、研究者、学生、自治体関係者',
   tone: 'casual' as 'casual' | 'standard' | 'academic',
