@@ -175,5 +175,11 @@ async function main(): Promise<number> {
   return failed ? 1 : 0;
 }
 
-const code = await main();
-process.exit(code);
+// CJS扱いの実行環境でも動くよう、トップレベルawaitは使わない
+main().then(
+  (code) => process.exit(code),
+  (e) => {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  },
+);

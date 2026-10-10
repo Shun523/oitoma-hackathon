@@ -14,3 +14,9 @@
 - 段階3: `/api/health?ping=1` のlive確認はおいとまの `/models` を1回呼ぶ形にした。
 - 段階4: 続きからは参加者数が同じなら前回のparamsを使い、違うなら決め直す。
 - 段階4: 公開用データの組み立ては run-pipeline.ts に仮置きし、段階7で publish.ts に移す。
+- 段階5: admin配下は `instant = false`＋`connection()`で要求時描画にした（Cache Componentsではdynamicが使えないため）。
+- 段階5: `/admin`はサーバredirectがpostponed描画で誤作動したためクライアント置換にした。
+- 段階5: StickerSet.tsxは構成図にないが本文の参照に合わせ作った。
+- 段階5: 保存失敗時のsaveError通知はpersist書込と循環しないようguardした。
+- 段階5: スクリプトはCJS扱いでも動くようトップレベルawaitを使わない（check-llmも修正）。
+- 段階5: TagInputはIMEのため入力中は制限せず超過を赤表示し確定時に弾く。
