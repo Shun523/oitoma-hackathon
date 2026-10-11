@@ -83,8 +83,9 @@ export default function GeneratePage(): React.JSX.Element {
   const summary = useStore((s) => s.summary);
   const progress = useStore((s) => s.progress);
   const llmLog = useStore((s) => s.llmLog);
+  const running = useStore((s) => s.running);
+  const setRunning = useStore((s) => s.setRunning);
 
-  const [running, setRunning] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [override, setOverride] = useState<Partial<Pick<GenerationParams, 'targetSize' | 'minSize' | 'maxSize' | 'candidateCount'>>>({});
   const [health, setHealth] = useState<{ mode?: string; model?: string; ok?: boolean; ms?: number; error?: string } | null>(null);

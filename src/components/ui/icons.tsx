@@ -115,3 +115,11 @@ export const IconPlay = (p: IconProps): React.JSX.Element => (
     <path d="M7 5l12 7-12 7z" />
   </Svg>
 );
+
+export const IconUserPlus = (p: IconProps): React.JSX.Element => (
+  <Svg {...p}>
+    <circle cx="9" cy="8" r="4" />
+    <path d="M2 21v-1a7 7 0 0 1 14 0v1" />
+    <path d="M19 8v6M16 11h6" />
+  </Svg>
+);

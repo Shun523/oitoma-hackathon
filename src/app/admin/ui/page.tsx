@@ -30,6 +30,7 @@ import {
   IconWarning,
   IconArrowDown,
   IconClose,
+  IconUserPlus,
 } from '@/components/ui/icons';
 
 function Section(props: { title: string; children: React.ReactNode }): React.JSX.Element {
@@ -186,6 +187,7 @@ export default function UiShowcasePage(): React.JSX.Element {
       <Section title="アイコン">
         <IconCheck /> <IconSave /> <IconWarning /> <IconSearch /> <IconSparkle /> <IconArrowRight />
         <IconArrowDown /> <IconUpload /> <IconPrinter /> <IconTrash /> <IconHelp /> <IconClose /> <IconPlay />
+        <IconUserPlus />
       </Section>
 
       <ToastHost />
