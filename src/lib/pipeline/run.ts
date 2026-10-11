@@ -1,11 +1,11 @@
 // src/lib/pipeline/run.ts
 // 生成の指揮（LlmApiを受け取る）。ブラウザ・スクリプト・テスト共用。
 // 1回のおいとま呼び出しが終わるたびに onUpdate を呼び、画面とlocalStorageに反映する。
-import { EVENT, PIPELINE } from '../../config/event';
+import { PIPELINE } from '../../config/event';
 import { assignSharedTags } from '../assign';
 import { mapLimit } from '../concurrency';
 import { computeParams } from '../sizing';
-import { hasNgWord } from '../text';
+import { buildAssignment } from './sticker';
 import type {
   Assignment,
   CatalogInput,
@@ -63,6 +63,14 @@ function chunk<T>(items: T[], size: number): T[][] {
 function fallbackTopics(p: Participant): string[] {
   if (p.hobby.trim() !== '') return [p.hobby.trim().slice(0, 15)];
   return [p.category];
+}
+
+export function toExtractInput(p: Participant): ExtractInput {
+  return { id: p.id, affiliation: p.affiliation, category: p.category, intro: p.intro, hobby: p.hobby };
+}
+
+export function fallbackExtraction(p: Participant): Extraction {
+  return { participantId: p.id, topics: fallbackTopics(p), personalCandidates: [], source: 'fallback' };
 }
 
 function makeLog(task: LlmCallLog['task'], meta: { attempts: number; ms: number }): LlmCallLog {
@@ -135,13 +143,7 @@ export async function runGeneration(args: {
   try {
     await mapLimit(chunk(missingExtract, PIPELINE.extractBatchSize), PIPELINE.concurrency, async (batch) => {
     checkAborted();
-    const inputs: ExtractInput[] = batch.map((p) => ({
-      id: p.id,
-      affiliation: p.affiliation,
-      category: p.category,
-      intro: p.intro,
-      hobby: p.hobby,
-    }));
+    const inputs: ExtractInput[] = batch.map(toExtractInput);
     const { results, missing, meta } = await api.extract(inputs);
     for (const r of results) {
       snap.extractions[r.id] = {
@@ -154,7 +156,7 @@ export async function runGeneration(args: {
     for (const id of missing) {
       const p = batch.find((b) => b.id === id);
       if (!p) continue;
-      snap.extractions[id] = { participantId: id, topics: fallbackTopics(p), personalCandidates: [], source: 'fallback' };
+      snap.extractions[id] = fallbackExtraction(p);
     }
     const phase = snap.progress.find((p) => p.key === 'extract');
     if (phase) phase.done = participants.filter((p) => snap.extractions[p.id]).length;
@@ -308,18 +310,7 @@ export async function runGeneration(args: {
   snap.activeTagIds = activeIds;
   const assignments: Record<string, Assignment> = {};
   for (const p of participants) {
-    const extraction = snap.extractions[p.id];
-    const candidates = extraction?.personalCandidates ?? [];
-    const personalTag = candidates.length > 0 ? candidates[0] : EVENT.fallbackPersonalTag;
-    const sharedTagIds = (heldTags[p.id] ?? []).slice(0, 2);
-    const flags: Assignment['flags'] = [];
-    if (p.intro === '' && p.hobby === '') flags.push('no_answer');
-    if (!p.consent) flags.push('no_consent');
-    const sharedLabels = sharedTagIds.map((tid) => labelById.get(tid) ?? '');
-    if (hasNgWord(personalTag) || sharedLabels.some((label) => hasNgWord(label))) flags.push('ng_word');
-    if (candidates.length === 0) flags.push('fallback_personal');
-    if (programFilled.has(p.id) || sharedTagIds.length < 2) flags.push('fallback_shared');
-    assignments[p.id] = { participantId: p.id, personalTag, sharedTagIds, edited: false, flags };
+    assignments[p.id] = buildAssignment(p, snap.extractions[p.id], heldTags[p.id] ?? [], programFilled.has(p.id), snap.candidates);
   }
   snap.assignments = assignments;
   setPhase('assign', 'done', { done: 1, finishedAt: Date.now() });

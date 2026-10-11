@@ -9,6 +9,8 @@ export interface Participant {
   intro: string; // 自己紹介。未回答・同意なしは ''
   hobby: string; // 最近ハマっていること。未回答・同意なしは ''
   consent: boolean;
+  source?: 'forms' | 'manual'; // 手入力で追加した人だけ 'manual'。ないときは 'forms' とみなす
+  addedAt?: string; // 手入力で追加した時刻（ISO）
 }
 
 export interface Extraction {

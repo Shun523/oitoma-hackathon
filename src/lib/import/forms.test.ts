@@ -68,3 +68,22 @@ describe('forms limits', () => {
     expect(() => toParticipants(sheet, guessColumns(sheet.headers))).toThrow();
   });
 });
+
+describe('forms sample-15', () => {
+  it('imports 15 people all with intro, hobby and consent', () => {
+    const file = path.join(process.cwd(), 'public', 'samples', 'sample-15.xlsx');
+    const sheet = readSheet(new Uint8Array(readFileSync(file)));
+    const { participants, warnings } = toParticipants(sheet, guessColumns(sheet.headers));
+    expect(participants.length).toBe(15);
+    expect(warnings).toEqual([]);
+    expect(participants.filter((p) => !p.consent).length).toBe(0);
+    for (const p of participants) {
+      expect(p.intro).not.toBe('');
+      expect(p.hobby).not.toBe('');
+    }
+    const categories = new Set(participants.map((p) => p.category));
+    for (const c of ['学生', '教員', '職員', '企業'] as const) {
+      expect(categories.has(c)).toBe(true);
+    }
+  });
+});

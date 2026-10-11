@@ -3,6 +3,7 @@
 // ブラウザとスクリプトの両方から使う純粋関数。
 import * as XLSX from 'xlsx';
 import type { Category, Participant } from '../types';
+import { normalizeAffiliation, normalizeHobby, normalizeIntro, normalizeName } from './normalize';
 
 export type FieldKey = 'name' | 'affiliation' | 'category' | 'intro' | 'hobby' | 'consent';
 export interface SheetData {
@@ -62,10 +63,6 @@ export function guessColumns(headers: string[]): ColumnMap {
   return map;
 }
 
-function collapseSpaces(s: string): string {
-  return s.replace(/[\r\n]+/g, ' ').replace(/[ \t\u3000]+/g, ' ').trim();
-}
-
 function mapCategory(value: string): Category {
   if (value.includes('学生')) return '学生';
   if (['教員', '教授', '准教授', '講師', '助教'].some((k) => value.includes(k))) return '教員';
@@ -94,20 +91,20 @@ export function toParticipants(
   let skippedEmptyName = 0;
   for (const row of sheet.rows) {
     // 名前・所属：改行を空白に、連続する空白を1つに、前後の空白を除く。
-    const name = collapseSpaces(cell(row, 'name')).slice(0, 30);
+    const name = normalizeName(cell(row, 'name'));
     if (name === '') {
       skippedEmptyName += 1;
       continue;
     }
-    const affiliation = collapseSpaces(cell(row, 'affiliation')).slice(0, 40);
+    const affiliation = normalizeAffiliation(cell(row, 'affiliation'));
     const category = map.category === undefined ? 'その他' : mapCategory(cell(row, 'category'));
     const hasConsentColumn = map.consent !== undefined;
     const consentValue = cell(row, 'consent').trim();
     const consent = hasConsentColumn
       ? consentValue !== '' && !CONSENT_NEGATIVES.some((w) => consentValue.includes(w))
       : true;
-    let intro = cell(row, 'intro').replace(/\r\n|\r|\n/g, ' ').slice(0, 400);
-    let hobby = cell(row, 'hobby').replace(/\r\n|\r|\n/g, ' ').slice(0, 100);
+    let intro = normalizeIntro(cell(row, 'intro'));
+    let hobby = normalizeHobby(cell(row, 'hobby'));
     // 同意なしの人は、自己紹介と一言を空にしてから保存する。
     if (!consent) {
       intro = '';

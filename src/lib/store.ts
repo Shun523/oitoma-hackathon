@@ -8,11 +8,13 @@ import { z } from 'zod';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_PRINT_OPTIONS } from '../config/event';
+import { applyAddLatecomer, applyAddParticipant, applyRemoveManual } from './state-ops';
 import type { GenerationSnapshot } from './pipeline/run';
 import type {
   AppState,
   Assignment,
   Category,
+  Extraction,
   LlmCallLog,
   Participant,
   PhaseProgress,
@@ -29,6 +31,8 @@ const participantSchema = z.object({
   intro: z.string(),
   hobby: z.string(),
   consent: z.boolean(),
+  source: z.enum(['forms', 'manual']).optional(),
+  addedAt: z.string().optional(),
 });
 
 // JSONの読み込み時に検証する
@@ -149,9 +153,13 @@ interface StoreActions {
   replaceAll: (state: AppState) => void;
   resetGeneration: (scope: 'all' | 'shared') => void;
   clearAll: () => void;
+  addParticipant: (p: Participant) => void;
+  addLatecomer: (added: { participant: Participant; extraction: Extraction; ranking: string[]; assignment: Assignment }) => void;
+  removeManualParticipant: (id: string) => void;
+  setRunning: (v: boolean) => void;
 }
 
-type StoreState = AppState & { saveError: boolean } & StoreActions;
+type StoreState = AppState & { saveError: boolean; running: boolean } & StoreActions;
 
 // 保存に失敗したら saveError を立てる（saveError 自体は保存しない）
 const safeStorage = {
@@ -184,6 +192,7 @@ export const useStore = create<StoreState>()(
     (set) => ({
       ...initialAppState(),
       saveError: false,
+      running: false,
 
       // 取り込んだら生成結果は空に戻す
       setParticipants: (participants: Participant[]) =>
@@ -251,7 +260,15 @@ export const useStore = create<StoreState>()(
           };
         }),
 
-      clearAll: () => set(() => ({ ...initialAppState(), saveError: false })),
+      clearAll: () => set(() => ({ ...initialAppState(), saveError: false, running: false })),
+
+      addParticipant: (p) => set((s) => applyAddParticipant(s, p)),
+
+      addLatecomer: (added) => set((s) => applyAddLatecomer(s, added)),
+
+      removeManualParticipant: (id) => set((s) => applyRemoveManual(s, id)),
+
+      setRunning: (v) => set(() => ({ running: v })),
     }),
     {
       name: 'nametag-app-v1',
