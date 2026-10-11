@@ -243,10 +243,12 @@ export default function PrintPage(): React.JSX.Element {
         </Card>
 
         <Card className="min-w-0 flex-[999_1_480px] p-5 print:border-0 print:p-0">
-          <CardTitle>
-            A4 {chunks.length}枚（{people.length}人）
-          </CardTitle>
-          <div className="mt-4 flex flex-col gap-4">
+          <div className="print:hidden">
+            <CardTitle>
+              A4 {chunks.length}枚（{people.length}人）
+            </CardTitle>
+          </div>
+          <div className="mt-4 flex flex-col gap-4 print:mt-0 print:gap-0">
             {chunks.map((rows, i) => (
               <div key={`${printOptions.preset}-${i}`}>
                 <div className="mb-1 text-adm-xs text-adm-sub print:hidden">用紙 {i + 1}</div>
