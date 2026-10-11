@@ -99,7 +99,9 @@ export default function PrintPage(): React.JSX.Element {
     personalTag: assignments[p.id]?.personalTag ?? '',
     sharedTags: (assignments[p.id]?.sharedTagIds ?? []).map((tid) => labelById.get(tid) ?? tid),
   }));
-  const rowsPerSheet = SHEET_PRESETS[printOptions.preset].rows;
+  // 21面は廃止のため、保存済みが21面でも24面として扱う（型と保存形式は互換のため残す）
+  const effectivePreset: SheetPresetKey = 'label24';
+  const rowsPerSheet = SHEET_PRESETS[effectivePreset].rows;
   const chunks: typeof people[] = [];
   for (let i = 0; i < people.length; i += rowsPerSheet) {
     chunks.push(people.slice(i, i + rowsPerSheet));
@@ -156,9 +158,9 @@ export default function PrintPage(): React.JSX.Element {
         <Card className="flex flex-[1_1_300px] flex-col gap-4 p-5 print:hidden">
           <div className="flex flex-col gap-2">
             <span className="text-adm-sm font-bold text-adm-ink2">用紙</span>
-            {(['label24', 'label21'] as const).map((key) => {
+            {(['label24'] as const).map((key) => {
               const preset = SHEET_PRESETS[key];
-              const checked = printOptions.preset === key;
+              const checked = effectivePreset === key;
               return (
                 <label
                   key={key}
@@ -174,7 +176,7 @@ export default function PrintPage(): React.JSX.Element {
                     className="mt-1 size-4 accent-adm-primary focus-visible:outline-2 focus-visible:outline-adm-primary"
                   />
                   <span>
-                    <span className="block font-bold">{key === 'label24' ? 'A4 24面ラベル' : 'A4 21面ラベル'}</span>
+                    <span className="block font-bold">A4 24面ラベル</span>
                     <span className="block text-adm-xs text-adm-sub">
                       {preset.wMm.toFixed(1)}×{preset.hMm}mm・1枚で{preset.rows}人分
                     </span>
@@ -250,12 +252,12 @@ export default function PrintPage(): React.JSX.Element {
           </div>
           <div className="mt-4 flex flex-col gap-4 print:mt-0 print:gap-0">
             {chunks.map((rows, i) => (
-              <div key={`${printOptions.preset}-${i}`}>
+              <div key={`${effectivePreset}-${i}`}>
                 <div className="mb-1 text-adm-xs text-adm-sub print:hidden">用紙 {i + 1}</div>
                 <div className="rounded border border-adm-line bg-white print:border-0">
                   <FitToWidth designWidthPx={SHEET_WIDTH_PX}>
                     <StickerSheet
-                      preset={printOptions.preset}
+                      preset={effectivePreset}
                       people={rows}
                       offsetXmm={printOptions.offsetXmm}
                       offsetYmm={printOptions.offsetYmm}

@@ -33,7 +33,7 @@ export const DEFAULT_PRINT_OPTIONS: PrintOptions = {
   preset: 'label24',
   showCount: false,
   offsetXmm: 0,
-  offsetYmm: 0,
+  offsetYmm: 2, // 実測で合わせた標準位置
   gapXmm: 0,
   gapYmm: 0,
 };
