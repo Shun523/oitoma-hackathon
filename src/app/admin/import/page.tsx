@@ -23,13 +23,14 @@ import { PageHeader } from '@/components/PageHeader';
 import {
   guessColumns,
   readSheet,
-  toParticipants,
+  previewParticipants,
   type ColumnMap,
   type FieldKey,
   type SheetData,
 } from '@/lib/import/forms';
 import { makeManualParticipant } from '@/lib/import/manual';
-import { httpLlmApi } from '@/lib/pipeline/llm-api';
+import { createHttpLlmApi } from '@/lib/pipeline/llm-api';
+import { generationOperation } from '@/lib/pipeline/operation';
 import { generateForOne, type AddStepKey } from '@/lib/pipeline/add-one';
 import { isGenerated } from '@/lib/state-ops';
 import { useHydrated, useStore } from '@/lib/store';
@@ -50,6 +51,7 @@ interface Parsed {
   participants: Participant[];
   skippedEmptyName: number;
   warnings: string[];
+  validationError: string | null;
 }
 
 interface ImportError {
@@ -83,8 +85,7 @@ function parseBuffer(buf: ArrayBuffer): Parsed {
     throw { title: '表の見出しが見つかりません', body: '1行目に質問の見出しがあるか確かめてください。' };
   }
   const map = guessColumns(sheet.headers);
-  const { participants, skippedEmptyName, warnings } = toParticipants(sheet, map);
-  return { sheet, map, participants, skippedEmptyName, warnings };
+  return { sheet, map, ...previewParticipants(sheet, map) };
 }
 
 type LateStep = { status: 'pending' | 'running' | 'done' | 'error'; ms?: number };
@@ -165,7 +166,11 @@ export default function ImportPage(): React.JSX.Element {
   }, []);
 
   useEffect(() => () => {
-    lateController.current?.abort();
+    const controller = lateController.current;
+    if (controller) {
+      controller.abort();
+      useStore.getState().finishOperation(controller);
+    }
   }, []);
 
   if (!hydrated) {
@@ -199,8 +204,11 @@ export default function ImportPage(): React.JSX.Element {
   });
 
   const startLate = (): void => {
+    const cur = useStore.getState();
+    if (cur.running || cur.participants.length >= 300 || mName.trim() === '') return;
     const person = makeManualParticipant(manualInput(), participants);
-    const controller = new AbortController();
+    const controller = cur.beginOperation();
+    if (!controller) return;
     lateController.current = controller;
     const startedAt = Date.now();
     setLate({
@@ -209,23 +217,24 @@ export default function ImportPage(): React.JSX.Element {
       steps: { extract: { status: 'pending' }, rank: { status: 'pending' }, assign: { status: 'pending' } },
       startedAt,
     });
-    const cur = useStore.getState();
     generateForOne({
       person,
       candidates: cur.candidates,
       activeTagIds: cur.activeTagIds,
       assignments: cur.assignments,
-      api: httpLlmApi,
+      api: createHttpLlmApi(controller.signal),
       onStep: (key, status, ms) => {
+        if (!generationOperation.isCurrent(controller)) return;
         setLate((prev) =>
           prev.phase === 'working' ? { ...prev, steps: { ...prev.steps, [key]: { status, ms } } } : prev,
         );
       },
-      onLog: (log) => cur.appendLlmLog(log),
+      onLog: (log) => { if (generationOperation.isCurrent(controller)) cur.appendLlmLog(log); },
       signal: controller.signal,
     })
       .then(({ extraction, ranking, assignment }) => {
-        if (controller.signal.aborted) return;
+        if (!generationOperation.isCurrent(controller)) return;
+        cur.finishOperation(controller);
         useStore.getState().addLatecomer({ participant: person, extraction, ranking, assignment });
         resetManualForm(false);
         const elapsedSec = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
@@ -236,6 +245,7 @@ export default function ImportPage(): React.JSX.Element {
         );
       })
       .catch((e: unknown) => {
+        if (lateController.current !== controller) return;
         if (controller.signal.aborted) {
           setLate({ phase: 'idle' });
           return;
@@ -248,10 +258,15 @@ export default function ImportPage(): React.JSX.Element {
           if (failed) steps[failed] = { status: 'error' };
           return { phase: 'error', person: prev.person, steps, message };
         });
+      })
+      .finally(() => {
+        cur.finishOperation(controller);
+        if (lateController.current === controller) lateController.current = null;
       });
   };
 
   const submitBefore = (): void => {
+    if (useStore.getState().running || mName.trim() === '') return;
     const person = makeManualParticipant(manualInput(), participants);
     addParticipant(person);
     showToast(`${person.name}さんを追加しました`);
@@ -288,7 +303,9 @@ export default function ImportPage(): React.JSX.Element {
       return;
     }
     try {
-      setParsed(parseBuffer(buf));
+      const next = parseBuffer(buf);
+      setParsed(next);
+      if (next.validationError) setError(toImportError(new Error(next.validationError)));
     } catch (e) {
       setParsed(null);
       setError(toImportError(e));
@@ -316,14 +333,9 @@ export default function ImportPage(): React.JSX.Element {
     const map = { ...parsed.map };
     if (index === undefined) delete map[key];
     else map[key] = index;
-    try {
-      const { participants, skippedEmptyName, warnings } = toParticipants(parsed.sheet, map);
-      setParsed({ ...parsed, map, participants, skippedEmptyName, warnings });
-      setError(null);
-    } catch (e) {
-      setParsed({ ...parsed, map, participants: [], skippedEmptyName: 0, warnings: [] });
-      setError(toImportError(e));
-    }
+    const next = { ...parsed, map, ...previewParticipants(parsed.sheet, map) };
+    setParsed(next);
+    setError(next.validationError ? toImportError(new Error(next.validationError)) : null);
   };
 
   const firstRowValue = (key: FieldKey): string => {
@@ -337,13 +349,13 @@ export default function ImportPage(): React.JSX.Element {
   const withoutConsent = parsed?.participants.filter((p) => !p.consent).length ?? 0;
 
   const commitImport = (): void => {
-    if (!parsed || parsed.participants.length === 0) return;
+    if (!parsed || parsed.validationError) return;
     setParticipants(parsed.participants);
     setDone(true);
   };
 
   const doImport = (): void => {
-    if (!parsed || parsed.participants.length === 0) return;
+    if (!parsed || parsed.validationError) return;
     if (parsed.map.name === undefined) {
       setError({ title: '名前の列を選んでください。名前がないと受付で渡せません' });
       return;
@@ -432,7 +444,7 @@ export default function ImportPage(): React.JSX.Element {
         </Button>
       </div>
 
-      {parsed !== null && parsed.participants.length > 0 && (
+      {parsed !== null && (
         <>
           <div className="flex flex-wrap gap-3">
             <StatCard label="読み込む人数" value={parsed.participants.length} unit="人" />
@@ -566,7 +578,7 @@ export default function ImportPage(): React.JSX.Element {
                     value={mName}
                     maxLength={30}
                     placeholder="例：岡山 花子"
-                    disabled={late.phase === 'working'}
+                    disabled={lateActive}
                     onChange={(e) => setMName(e.target.value)}
                     className={INPUT_CLS}
                   />
@@ -578,7 +590,7 @@ export default function ImportPage(): React.JSX.Element {
                     value={mAffiliation}
                     maxLength={40}
                     placeholder="例：工学部 情報系"
-                    disabled={late.phase === 'working'}
+                    disabled={lateActive}
                     onChange={(e) => setMAffiliation(e.target.value)}
                     className={INPUT_CLS}
                   />
@@ -587,7 +599,7 @@ export default function ImportPage(): React.JSX.Element {
                   <span>区分</span>
                   <select
                     value={mCategory}
-                    disabled={late.phase === 'working'}
+                    disabled={lateActive}
                     onChange={(e) => setMCategory(e.target.value as Category)}
                     className={INPUT_CLS}
                   >
@@ -609,7 +621,7 @@ export default function ImportPage(): React.JSX.Element {
                     value={mIntro}
                     maxLength={400}
                     placeholder="例：発酵食品の成分を分析しています。休日はパンを焼きます。"
-                    disabled={late.phase === 'working'}
+                    disabled={lateActive}
                     onChange={(e) => setMIntro(e.target.value)}
                     className={INPUT_CLS}
                   />
@@ -624,7 +636,7 @@ export default function ImportPage(): React.JSX.Element {
                     value={mHobby}
                     maxLength={100}
                     placeholder="例：岡山のパン屋めぐり"
-                    disabled={late.phase === 'working'}
+                    disabled={lateActive}
                     onChange={(e) => setMHobby(e.target.value)}
                     className={INPUT_CLS}
                   />
@@ -633,7 +645,7 @@ export default function ImportPage(): React.JSX.Element {
                   <input
                     type="checkbox"
                     checked={mConsent}
-                    disabled={late.phase === 'working'}
+                    disabled={lateActive}
                     onChange={(e) => setMConsent(e.target.checked)}
                     className="size-4 accent-adm-primary"
                   />
@@ -743,7 +755,7 @@ export default function ImportPage(): React.JSX.Element {
                     <StickerSet
                       preset={printPreset}
                       personalTag={late.result.assignment.personalTag}
-                      sharedTags={late.result.assignment.sharedTagIds}
+                      sharedTags={late.result.assignment.sharedTagIds.map(id => candidateLabelById.get(id) ?? '')}
                       name={late.person.name}
                     />
                   </FitToWidth>
@@ -797,7 +809,7 @@ export default function ImportPage(): React.JSX.Element {
                   tone="danger"
                   title={lateError.title}
                   action={
-                    <Button variant="primary" size="sm" onClick={startLate}>
+                    <Button variant="primary" size="sm" onClick={startLate} disabled={generatingAll}>
                       もう一度試す
                     </Button>
                   }
@@ -857,7 +869,7 @@ export default function ImportPage(): React.JSX.Element {
                             )}
                           </td>
                           <td className="whitespace-nowrap border-b border-adm-divider px-4 py-3 align-top">
-                            <Button variant="secondary" size="sm" icon={<IconTrash size={16} />} onClick={() => setPendingRemove(p.id)}>
+                            <Button variant="secondary" size="sm" icon={<IconTrash size={16} />} onClick={() => setPendingRemove(p.id)} disabled={generatingAll}>
                               取り消す
                             </Button>
                           </td>
@@ -905,8 +917,8 @@ export default function ImportPage(): React.JSX.Element {
 
       <PageFooter
         left={
-          parsed !== null && parsed.participants.length > 0 ? (
-            <Button variant="primary" size="lg" onClick={doImport} disabled={parsed.participants.length === 0}>
+          tab === 'excel' && parsed !== null ? (
+            <Button variant="primary" size="lg" onClick={doImport} disabled={parsed.validationError !== null || generatingAll}>
               この内容で読み込む（{parsed.participants.length}人）
             </Button>
           ) : undefined

@@ -3,7 +3,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GuideCard } from '@/components/GuideCard';
 import { TagInput } from '@/components/TagInput';
 import { toOitomaNotice } from '@/components/oitoma-error';
@@ -25,6 +25,8 @@ import { displayLength, sanitizeTag } from '@/lib/text';
 import { computeMetrics } from '@/lib/metrics';
 import { useHydrated, useStore } from '@/lib/store';
 import type { AppState, Flag } from '@/lib/types';
+import { createHttpLlmApi } from '@/lib/pipeline/llm-api';
+import { generationOperation } from '@/lib/pipeline/operation';
 
 const FLAG_LABEL: Record<Flag, string> = {
   no_answer: '回答なし',
@@ -76,6 +78,12 @@ export default function ReviewPage(): React.JSX.Element {
   const updateAssignment = useStore((s) => s.updateAssignment);
   const addPersonalCandidates = useStore((s) => s.addPersonalCandidates);
   const renameSharedTag = useStore((s) => s.renameSharedTag);
+  const running = useStore((s) => s.running);
+  const regenController = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    const controller = regenController.current;
+    if (controller) { controller.abort(); useStore.getState().finishOperation(controller); }
+  }, []);
 
   const [tab, setTab] = useState<'tags' | 'people'>('people');
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
@@ -222,45 +230,31 @@ export default function ReviewPage(): React.JSX.Element {
   const regeneratePersonal = async (participantId: string): Promise<void> => {
     const p = participants.find((q) => q.id === participantId);
     const extraction = extractions[participantId];
-    if (!p || regenerating) return;
+    if (!p || regenerating || useStore.getState().running) return;
+    const controller = useStore.getState().beginOperation();
+    if (!controller) return;
+    regenController.current = controller;
     setRegenerating(participantId);
     setRegenError(null);
     try {
-      const res = await fetch('/api/llm/regenerate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          person: {
-            id: p.id,
-            affiliation: p.affiliation,
-            category: p.category,
-            intro: p.intro,
-            hobby: p.hobby,
-            topics: extraction?.topics ?? [],
-          },
-          avoid: extraction?.personalCandidates ?? [],
-        }),
-      });
-      if (!res.ok) {
-        let message = '別案を作れませんでした';
-        try {
-          const data = (await res.json()) as { message?: unknown };
-          if (typeof data?.message === 'string' && data.message !== '') message = data.message;
-        } catch {
-          // 既定の文言のまま
-        }
-        setRegenError({ id: participantId, message });
-        return;
+      const data = await createHttpLlmApi(controller.signal).regenerate({
+        id: p.id, affiliation: p.affiliation, category: p.category,
+        intro: p.intro, hobby: p.hobby, topics: extraction?.topics ?? [],
+      }, extraction?.personalCandidates ?? []);
+      if (generationOperation.isCurrent(controller)) {
+        addPersonalCandidates(participantId, data.personal.filter(isTagOk).map(sanitizeTag));
       }
-      const data = (await res.json()) as { personal?: string[] };
-      addPersonalCandidates(participantId, (data.personal ?? []).filter(isTagOk).map(sanitizeTag));
-    } catch {
-      setRegenError({
+    } catch (error) {
+      if (generationOperation.isCurrent(controller)) setRegenError({
         id: participantId,
-        message: 'おいとまに接続できません。学内ネットワークかOU-VPNにつないでいるか確認してください',
+        message: error instanceof Error ? error.message : 'おいとまに接続できません',
       });
     } finally {
-      setRegenerating(null);
+      useStore.getState().finishOperation(controller);
+      if (regenController.current === controller) {
+        regenController.current = null;
+        setRegenerating(null);
+      }
     }
   };
 
@@ -625,7 +619,7 @@ export default function ReviewPage(): React.JSX.Element {
                       variant="dashed"
                       size="sm"
                       icon={<IconSparkle size={16} />}
-                      disabled={regenerating !== null}
+                      disabled={regenerating !== null || running}
                       onClick={() => void regeneratePersonal(shown.id)}
                     >
                       {regenerating === shown.id ? '考えています…' : 'おいとまに別案を出してもらう'}

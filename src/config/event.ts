@@ -28,6 +28,7 @@ export const SHEET_PRESETS = {
 } as const;
 export const STICKER_COLS = 3;
 export const STICKER_CAPTION_PT = 6.5;
+export const STICKER_GAP_MM = 2; // 本番で位置合わせ済みの3枚の間隔
 
 export const DEFAULT_PRINT_OPTIONS: PrintOptions = {
   preset: 'label24',

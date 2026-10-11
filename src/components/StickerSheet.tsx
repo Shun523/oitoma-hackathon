@@ -1,16 +1,15 @@
-// src/components/StickerSheet.tsx
-// A4ラベル用紙1枚分（1行＝1人分）。入りきらない分は次の用紙へ。並びは取り込み順。
-import { SHEET_PRESETS } from '../config/event';
+// 用紙の段数を基準に配置し、試し刷りと本番で同じ座標を使う。
+import { SHEET_PRESETS, STICKER_GAP_MM } from '../config/event';
+import { layoutRows } from '../lib/sheet-layout';
 import type { SheetPresetKey } from '../lib/types';
 import { StickerSet } from './StickerSet';
 
 export interface SheetPerson {
   name: string;
   personalTag: string;
-  sharedTags: string[]; // 0〜2個
+  sharedTags: string[];
 }
 
-// 画面プレビュー用：A4幅のpx換算（96dpi）
 export const SHEET_WIDTH_PX = (210 * 96) / 25.4;
 
 interface StickerSheetProps {
@@ -22,113 +21,43 @@ interface StickerSheetProps {
   gapYmm: number;
   showCount?: boolean;
   sharedCounts?: Record<string, number>;
-  testMode?: boolean; // trueなら中身を描かず外枠だけを0.2mmの線で描く
-  startRow?: number; // 使いかけ用紙の刷り始める段（1始まり）。2以上だけ使い、1（既定）は今までどおり
+  testMode?: boolean;
+  startRow?: number;
 }
 
 export function StickerSheet({
-  preset,
-  people,
-  offsetXmm,
-  offsetYmm,
-  gapXmm,
-  gapYmm,
-  showCount,
-  sharedCounts,
-  testMode,
-  startRow,
+  preset, people, offsetXmm, offsetYmm, gapXmm, gapYmm,
+  showCount, sharedCounts, testMode, startRow = 1,
 }: StickerSheetProps): React.JSX.Element {
   const sheet = SHEET_PRESETS[preset];
-  const sheets: SheetPerson[][] = [];
-  for (let i = 0; i < people.length; i += sheet.rows) {
-    sheets.push(people.slice(i, i + sheet.rows));
-  }
-
+  // 既存の本番の先頭位置と2mm間隔を維持し、設定値を追加の間隔補正にする。
   const left = (210 - 3 * sheet.wMm - 2 * gapXmm) / 2 + offsetXmm;
-  const topOf = (rowsInSheet: number): number =>
-    (297 - rowsInSheet * sheet.hMm - (rowsInSheet - 1) * gapYmm) / 2 + offsetYmm;
-
-  const start = startRow ?? 1;
-  if (start >= 2) {
-    // 使いかけ用紙：絶対の段に置く（呼び出し側が容量以内で渡す）。試し刷りの枠も同じ段に出す。
-    const top = topOf(sheet.rows);
-    return (
-      <div
-        className="sheet relative mx-auto bg-white"
-        style={{ width: '210mm', height: '297mm' }}
-      >
-        {people.map((person, j) => (
-          <div
-            key={person.name + j}
-            className="absolute flex"
-            style={{
-              left: `${left}mm`,
-              top: `${top + (start - 1 + j) * (sheet.hMm + gapYmm)}mm`,
-              gap: `${gapXmm}mm`,
-            }}
-          >
-            {testMode ? (
-              [0, 1, 2].map((k) => (
-                <div
-                  key={k}
-                  style={{ width: `${sheet.wMm}mm`, height: `${sheet.hMm}mm`, border: '0.2mm solid #000' }}
-                />
-              ))
-            ) : (
-              <StickerSet
-                preset={preset}
-                personalTag={person.personalTag}
-                sharedTags={person.sharedTags}
-                name={person.name}
-                sharedCounts={sharedCounts}
-                showCount={showCount}
-                direction="row"
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const top = (297 - sheet.rows * sheet.hMm - (sheet.rows - 1) * gapYmm) / 2 + offsetYmm;
+  const gap = STICKER_GAP_MM + gapXmm;
+  const pages = testMode
+    ? [Array.from({ length: sheet.rows }, (_, i) => i)]
+    : layoutRows(people.length, sheet.rows, startRow);
 
   return (
     <>
-      {sheets.map((rows, si) => (
-        <div
-          key={si}
-          className="sheet relative mx-auto bg-white"
-          style={{ width: '210mm', height: '297mm' }}
-        >
-          {rows.map((person, i) => (
-            <div
-              key={person.name + i}
-              className="absolute flex"
-              style={{
-                left: `${left}mm`,
-                top: `${topOf(rows.length) + i * (sheet.hMm + gapYmm)}mm`,
-                gap: `${gapXmm}mm`,
-              }}
-            >
-              {testMode ? (
-                [0, 1, 2].map((k) => (
-                  <div
-                    key={k}
-                    style={{ width: `${sheet.wMm}mm`, height: `${sheet.hMm}mm`, border: '0.2mm solid #000' }}
-                  />
-                ))
-              ) : (
-                <StickerSet
-                  preset={preset}
-                  personalTag={person.personalTag}
-                  sharedTags={person.sharedTags}
-                  name={person.name}
-                  sharedCounts={sharedCounts}
-                  showCount={showCount}
-                  direction="row"
-                />
-              )}
-            </div>
-          ))}
+      {pages.map((slots, pageIndex) => (
+        <div key={pageIndex} className="sheet relative mx-auto bg-white" style={{ width: '210mm', height: '297mm' }}>
+          {slots.map((personIndex, rowIndex) => {
+            if (personIndex === null) return null;
+            const person = people[personIndex];
+            return (
+              <div key={rowIndex} className="absolute flex" style={{ left: left + 'mm', top: (top + rowIndex * (sheet.hMm + gapYmm)) + 'mm', gap: gap + 'mm' }}>
+                {testMode ? (
+                  [0, 1, 2].map((column) => (
+                    <div key={column} style={{ width: sheet.wMm + 'mm', height: sheet.hMm + 'mm', border: '0.2mm solid #000' }} />
+                  ))
+                ) : (
+                  <StickerSet preset={preset} personalTag={person.personalTag} sharedTags={person.sharedTags}
+                    name={person.name} sharedCounts={sharedCounts} showCount={showCount} direction="row" gapMm={gap} />
+                )}
+              </div>
+            );
+          })}
         </div>
       ))}
     </>

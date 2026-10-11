@@ -15,7 +15,9 @@ import { TagChip } from '@/components/ui/TagChip';
 import { IconCheck, IconPlay } from '@/components/ui/icons';
 import { PageFooter } from '@/components/PageFooter';
 import { PageHeader } from '@/components/PageHeader';
-import { httpLlmApi } from '@/lib/pipeline/llm-api';
+import { createHttpLlmApi } from '@/lib/pipeline/llm-api';
+import { generationOperation } from '@/lib/pipeline/operation';
+import { normalizeGenerationParams } from '@/lib/generation-params';
 import { emptySnapshot, runGeneration, type GenerationSnapshot } from '@/lib/pipeline/run';
 import { computeParams } from '@/lib/sizing';
 import { useHydrated, useStore } from '@/lib/store';
@@ -84,7 +86,6 @@ export default function GeneratePage(): React.JSX.Element {
   const progress = useStore((s) => s.progress);
   const llmLog = useStore((s) => s.llmLog);
   const running = useStore((s) => s.running);
-  const setRunning = useStore((s) => s.setRunning);
 
   const [now, setNow] = useState(() => Date.now());
   const [override, setOverride] = useState<Partial<Pick<GenerationParams, 'targetSize' | 'minSize' | 'maxSize' | 'candidateCount'>>>({});
@@ -95,6 +96,14 @@ export default function GeneratePage(): React.JSX.Element {
   const [skipCount, setSkipCount] = useState(0);
   const [pendingRemake, setPendingRemake] = useState<'all' | 'shared' | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    const controller = abortRef.current;
+    if (controller) {
+      controller.abort();
+      useStore.getState().finishOperation(controller);
+    }
+  }, []);
 
   useEffect(() => {
     if (!running) return;
@@ -139,19 +148,6 @@ export default function GeneratePage(): React.JSX.Element {
 
   const guide = computeParams(participants.length);
   const shown = params ?? guide;
-  const customParams = (n: number): GenerationParams => {
-    const base = computeParams(n);
-    const targetSize = override.targetSize ?? base.targetSize;
-    const minSize = override.minSize ?? Math.max(2, Math.ceil(targetSize / 2));
-    const maxSize = override.maxSize ?? targetSize * 2;
-    return {
-      ...base,
-      targetSize,
-      minSize: Math.min(minSize, maxSize),
-      maxSize: Math.max(minSize, maxSize),
-      candidateCount: override.candidateCount ?? base.candidateCount,
-    };
-  };
   const complete = isComplete(progress);
   const hasPartial = params !== null && !complete;
   const editedCount = Object.values(assignments).filter((a) => a.edited).length;
@@ -184,16 +180,16 @@ export default function GeneratePage(): React.JSX.Element {
   };
 
   const startRun = (fresh: boolean): void => {
-    if (running) return;
+    if (useStore.getState().running || participants.length < 6) return;
     const store = useStore.getState();
     if (fresh) store.resetGeneration('all');
     const cur = useStore.getState();
     const parts = cur.participants;
-    const controller = new AbortController();
+    const controller = cur.beginOperation();
+    if (!controller) return;
     abortRef.current = controller;
-    setRunning(true);
     const base: GenerationSnapshot = fresh
-      ? { ...emptySnapshot(), params: customParams(parts.length) }
+      ? { ...emptySnapshot(), params: normalizeGenerationParams(parts.length, override) }
       : {
           params: cur.params ?? computeParams(parts.length),
           extractions: { ...cur.extractions },
@@ -207,20 +203,21 @@ export default function GeneratePage(): React.JSX.Element {
     runGeneration({
       participants: parts,
       start: base,
-      api: httpLlmApi,
+      api: createHttpLlmApi(controller.signal),
       signal: controller.signal,
       onUpdate: (snap: GenerationSnapshot, log?: LlmCallLog) => {
+        if (!generationOperation.isCurrent(controller)) return;
         cur.patchGeneration(snap);
         if (log) cur.appendLlmLog(log);
       },
     })
-      .then(() => cur.markGenerated())
+      .then(() => { if (generationOperation.isCurrent(controller)) cur.markGenerated(); })
       .catch(() => {
         // 段階の error は progress に残り、「続きから作る」で再開できる
       })
       .finally(() => {
-        setRunning(false);
-        abortRef.current = null;
+        cur.finishOperation(controller);
+        if (abortRef.current === controller) abortRef.current = null;
       });
   };
 
@@ -243,6 +240,7 @@ export default function GeneratePage(): React.JSX.Element {
       />
 
       <Card className="flex flex-col gap-4 p-5">
+        {participants.length < 6 && <Notice tone="info" title="タグを作るには6人以上必要です">回答を読み込む画面で参加者を追加してください。</Notice>}
         <p>
           {participants.length}人分の回答から作ります。1つの共有タグを約{shown.targetSize}人（{shown.minSize}
           〜{shown.maxSize}人）で共有します。
@@ -274,7 +272,7 @@ export default function GeneratePage(): React.JSX.Element {
               中止する
             </Button>
           ) : !complete && !hasPartial ? (
-            <Button variant="primary" onClick={() => startRun(true)}>
+            <Button variant="primary" onClick={() => startRun(true)} disabled={participants.length < 6}>
               タグをまとめて作る
             </Button>
           ) : !complete && hasPartial ? (
@@ -451,7 +449,8 @@ export default function GeneratePage(): React.JSX.Element {
                   <span className="w-48 shrink-0">{label}</span>
                   <input
                     type="number"
-                    min={1}
+                    min={key === 'candidateCount' ? 4 : key === 'minSize' || key === 'maxSize' ? 2 : 1}
+                    max={key === 'candidateCount' ? 40 : key === 'maxSize' ? participants.length * 2 : participants.length}
                     value={override[key] ?? guide[key]}
                     onChange={(e) => {
                       const v = Number(e.target.value);

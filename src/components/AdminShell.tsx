@@ -49,6 +49,7 @@ export function AdminShell({ children }: { children: ReactNode }): React.JSX.Ele
   const participantCount = useStore((s) => s.participants.length);
   const generated = useStore((s) => s.generatedAt !== null);
   const saveError = useStore((s) => s.saveError);
+  const restoreError = useStore((s) => s.restoreError);
   const [mode, setMode] = useState<'mock' | 'live' | null>(null);
 
   useEffect(() => {
@@ -156,6 +157,7 @@ export function AdminShell({ children }: { children: ReactNode }): React.JSX.Ele
       </nav>
       <main className="min-w-0 flex-[999_1_560px] px-8 pb-10 pt-7 print:p-0">
         <div className="mx-auto flex max-w-[1120px] flex-col gap-5">
+          {restoreError && <Notice tone="danger" title="保存中のデータを読み込めませんでした">{restoreError}</Notice>}
           {saveError && (
             <Notice
               tone="warn"

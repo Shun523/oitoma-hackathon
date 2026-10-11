@@ -40,6 +40,7 @@ export default function DataPage(): React.JSX.Element {
   const [maskNames, setMaskNames] = useState(true);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!hydrated) {
@@ -75,16 +76,17 @@ export default function DataPage(): React.JSX.Element {
   };
 
   const onImport = async (file: File): Promise<void> => {
+    setImportError(null);
     try {
       const parsed = appStateSchema.safeParse(JSON.parse(await file.text()));
       if (!parsed.success) {
-        window.alert('状態のJSONとして読めませんでした');
+        setImportError('作業データの内容や参照が正しくありません。正常なバックアップを選んでください。');
         return;
       }
       replaceAll(parsed.data);
       showToast('作業データを開きました');
     } catch {
-      window.alert('状態のJSONとして読めませんでした');
+      setImportError('作業データを読み込めませんでした。このアプリで保存したファイルを選んでください。');
     }
   };
 
@@ -107,11 +109,12 @@ export default function DataPage(): React.JSX.Element {
         title="保存・バックアップ"
         description="作業データをファイルに保存したり、公開ページ用のファイルを書き出したりします。"
       />
+      {importError && <Notice tone="danger" title="作業データを開けませんでした">{importError}</Notice>}
 
       <Card className="flex flex-col gap-3 p-5">
         <CardTitle>作業データ</CardTitle>
         <p className="text-adm-sm text-adm-ink2">
-          発表や別のPCで続きをするときに使います。回答とタグをすべて含むので、他の人には渡さないでください。
+          発表や別のPCで続きをするときに使います。回答とタグをすべて含むので、許可された運用担当者だけに渡してください。
         </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="primary" icon={<IconSave size={16} />} onClick={onExport}>
@@ -155,8 +158,10 @@ export default function DataPage(): React.JSX.Element {
         </div>
         <Notice
           tone="info"
-          title="書き出した published.json で src/data/published.json を置き換えてpushすると、公開ページに反映されます。"
-        />
+          title="公開ページ用のファイルは、運用担当者に渡してください。"
+        >
+          ngrokで公開する場合は、担当者がファイルを差し替えてアプリを再起動します。
+        </Notice>
       </Card>
 
       <section className="flex flex-col gap-3 rounded-xl border border-adm-danger-line bg-adm-danger-bg p-5">

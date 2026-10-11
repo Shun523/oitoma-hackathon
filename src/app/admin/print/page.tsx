@@ -227,7 +227,8 @@ export default function PrintPage(): React.JSX.Element {
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-adm-sm font-bold text-adm-ink2">すき間（mm）</span>
+            <span className="text-adm-sm font-bold text-adm-ink2">すき間の補正（mm）</span>
+            <p className="text-adm-xs text-adm-sub">横は標準の2mmに足す値です。</p>
             {stepField('X', '横のすき間', printOptions.gapXmm, 0, 10, (v) => setPrintOptions({ gapXmm: v }))}
             {stepField('Y', '縦のすき間', printOptions.gapYmm, 0, 10, (v) => setPrintOptions({ gapYmm: v }))}
           </div>
@@ -316,11 +317,11 @@ export default function PrintPage(): React.JSX.Element {
         <Card className="min-w-0 flex-[999_1_480px] p-5 print:border-0 print:p-0">
           <div className="print:hidden">
             <CardTitle>
-              A4 {sheets.length}枚（{filtered.length}人）
+              {testMode ? '位置合わせ用 A4 1枚（全8段）' : `A4 ${sheets.length}枚（${filtered.length}人）`}
             </CardTitle>
           </div>
           <div className="mt-4 flex flex-col gap-4 print:mt-0 print:gap-0">
-            {sheets.map((rows, i) => (
+            {(testMode ? [people] : sheets).map((rows, i) => (
               <div key={`${effectivePreset}-${start}-${i}`}>
                 <div className="mb-1 text-adm-xs text-adm-sub print:hidden">用紙 {i + 1}</div>
                 <div className="rounded border border-adm-line bg-white print:border-0">

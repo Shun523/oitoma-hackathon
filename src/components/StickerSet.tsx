@@ -1,7 +1,7 @@
 // src/components/StickerSet.tsx
 // 1人分（タグ1つずつのシール3枚：個性タグ、共有タグ1、共有タグ2）。
 // 幅600px未満では3枚を縦に、それ以上では横1行に並べる。
-import { SHEET_PRESETS } from '../config/event';
+import { SHEET_PRESETS, STICKER_GAP_MM } from '../config/event';
 import type { SheetPresetKey } from '../lib/types';
 import { Sticker } from './Sticker';
 
@@ -13,6 +13,7 @@ interface StickerSetProps {
   sharedCounts?: Record<string, number>; // showCount がオンのときの人数
   showCount?: boolean;
   direction?: 'responsive' | 'row'; // 用紙の行では常に横1行
+  gapMm?: number;
 }
 
 export function StickerSet({
@@ -23,6 +24,7 @@ export function StickerSet({
   sharedCounts,
   showCount,
   direction = 'responsive',
+  gapMm = STICKER_GAP_MM,
 }: StickerSetProps): React.JSX.Element {
   const sheet = SHEET_PRESETS[preset];
   const captionFor = (label: string): string => {
@@ -33,7 +35,7 @@ export function StickerSet({
     return '同じタグの人を探そう';
   };
   return (
-    <div className={direction === 'row' ? 'flex flex-row' : 'flex flex-col gap-2 min-[600px]:flex-row'} style={{ gap: '2mm' }}>
+    <div className={direction === 'row' ? 'flex flex-row' : 'flex flex-col gap-2 min-[600px]:flex-row'} style={{ gap: `${gapMm}mm` }}>
       <Sticker preset={preset} kind="personal" label={personalTag} caption={name} />
       {[0, 1].map((i) => {
         const label = sharedTags[i];
