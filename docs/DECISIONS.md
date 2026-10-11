@@ -53,6 +53,8 @@
 - ADD-A1: 整え処理はnormalize.tsに切り出しformsとmanualで共用。toExtractInputとfallbackはrun.tsからexportしてadd-oneと共用。
 - ADD-A2: ?tab=の初期反映は描画後のeffectで行い、切替時は?tab=excel/?tab=manualを明示して書き換える。
 - ADD-A2: Segmentedにdisabledを足した（実行中のみ使う）。失敗行の特定は未doneの先頭行にした。
+- ADD-A3: review・printの?id=・?only=はuseSearchParamsで初回描画から反映（動的ルートのため不一致なし）。
+- ADD-A3: startRow=1は旧経路のまま、2以上だけ絶対配置にする。試し刷りの枠も同じ段に出す。
 - レビュー2026-10-11: 今回はコード修正を行わず、仕様との差分・再現した不備・検証できない範囲をdocs/IMPLEMENTATION-REVIEW.mdに記録する。
 - 公開2026-10-11: ユーザー指定により管理画面もngrokで利用者限定公開するため、全ルートへのOAuthと許可メール一覧、ブラウザごとの保存、学外経由の通信をdocs/NGROK.mdに明記する。
 - 改善2026-10-11: 印刷・生成・取り込みの不備と追加仕様A2/A3の完了を先に行い、その後にダミー固定データで品質と速度を比較する進め方をdocs/IMPROVEMENT-PLAN.mdにまとめる。

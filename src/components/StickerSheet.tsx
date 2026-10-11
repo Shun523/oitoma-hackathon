@@ -23,6 +23,7 @@ interface StickerSheetProps {
   showCount?: boolean;
   sharedCounts?: Record<string, number>;
   testMode?: boolean; // trueなら中身を描かず外枠だけを0.2mmの線で描く
+  startRow?: number; // 使いかけ用紙の刷り始める段（1始まり）。2以上だけ使い、1（既定）は今までどおり
 }
 
 export function StickerSheet({
@@ -35,6 +36,7 @@ export function StickerSheet({
   showCount,
   sharedCounts,
   testMode,
+  startRow,
 }: StickerSheetProps): React.JSX.Element {
   const sheet = SHEET_PRESETS[preset];
   const sheets: SheetPerson[][] = [];
@@ -45,6 +47,49 @@ export function StickerSheet({
   const left = (210 - 3 * sheet.wMm - 2 * gapXmm) / 2 + offsetXmm;
   const topOf = (rowsInSheet: number): number =>
     (297 - rowsInSheet * sheet.hMm - (rowsInSheet - 1) * gapYmm) / 2 + offsetYmm;
+
+  const start = startRow ?? 1;
+  if (start >= 2) {
+    // 使いかけ用紙：絶対の段に置く（呼び出し側が容量以内で渡す）。試し刷りの枠も同じ段に出す。
+    const top = topOf(sheet.rows);
+    return (
+      <div
+        className="sheet relative mx-auto bg-white"
+        style={{ width: '210mm', height: '297mm' }}
+      >
+        {people.map((person, j) => (
+          <div
+            key={person.name + j}
+            className="absolute flex"
+            style={{
+              left: `${left}mm`,
+              top: `${top + (start - 1 + j) * (sheet.hMm + gapYmm)}mm`,
+              gap: `${gapXmm}mm`,
+            }}
+          >
+            {testMode ? (
+              [0, 1, 2].map((k) => (
+                <div
+                  key={k}
+                  style={{ width: `${sheet.wMm}mm`, height: `${sheet.hMm}mm`, border: '0.2mm solid #000' }}
+                />
+              ))
+            ) : (
+              <StickerSet
+                preset={preset}
+                personalTag={person.personalTag}
+                sharedTags={person.sharedTags}
+                name={person.name}
+                sharedCounts={sharedCounts}
+                showCount={showCount}
+                direction="row"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>

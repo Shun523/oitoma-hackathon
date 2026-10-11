@@ -3,16 +3,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FitToWidth } from '@/components/FitToWidth';
 import { GuideCard } from '@/components/GuideCard';
 import { SHEET_WIDTH_PX, StickerSheet } from '@/components/StickerSheet';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Notice } from '@/components/ui/Notice';
+import { Segmented } from '@/components/ui/Segmented';
 import { IconPrinter } from '@/components/ui/icons';
 import { PageFooter } from '@/components/PageFooter';
 import { PageHeader } from '@/components/PageHeader';
 import { SHEET_PRESETS } from '@/config/event';
+import { layoutRows } from '@/lib/sheet-layout';
 import { useHydrated, useStore } from '@/lib/store';
 import type { SheetPresetKey } from '@/lib/types';
 
@@ -23,6 +26,7 @@ function clampNum(value: number, min: number, max: number): number {
 
 export default function PrintPage(): React.JSX.Element {
   const hydrated = useHydrated();
+  const searchParams = useSearchParams();
   const participants = useStore((s) => s.participants);
   const assignments = useStore((s) => s.assignments);
   const candidates = useStore((s) => s.candidates);
@@ -31,6 +35,8 @@ export default function PrintPage(): React.JSX.Element {
 
   const [testMode, setTestMode] = useState(false);
   const [queued, setQueued] = useState(false);
+  const [onlyManual, setOnlyManual] = useState(() => searchParams.get('only') === 'manual');
+  const [startRow, setStartRow] = useState(1);
 
   useEffect(() => {
     if (!queued) return;
@@ -94,7 +100,12 @@ export default function PrintPage(): React.JSX.Element {
       sharedCounts[label] = (sharedCounts[label] ?? 0) + 1;
     }
   }
-  const people = participants.map((p) => ({
+  const manualCount = participants.filter((p) => p.source === 'manual').length;
+  const showManualOnly = onlyManual && manualCount > 0;
+  const filtered = [...(showManualOnly ? participants.filter((p) => p.source === 'manual') : participants)].sort(
+    (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+  const people = filtered.map((p) => ({
     name: p.name,
     personalTag: assignments[p.id]?.personalTag ?? '',
     sharedTags: (assignments[p.id]?.sharedTagIds ?? []).map((tid) => labelById.get(tid) ?? tid),
@@ -102,10 +113,12 @@ export default function PrintPage(): React.JSX.Element {
   // 21面は廃止のため、保存済みが21面でも24面として扱う（型と保存形式は互換のため残す）
   const effectivePreset: SheetPresetKey = 'label24';
   const rowsPerSheet = SHEET_PRESETS[effectivePreset].rows;
-  const chunks: typeof people[] = [];
-  for (let i = 0; i < people.length; i += rowsPerSheet) {
-    chunks.push(people.slice(i, i + rowsPerSheet));
-  }
+  const start = Math.min(Math.max(1, startRow), rowsPerSheet);
+  const layout = layoutRows(filtered.length, rowsPerSheet, start);
+  const sheets = layout.map((slots) =>
+    slots.filter((v): v is number => v !== null).map((i) => people[i]!),
+  );
+  const firstStart = layout.length > 0 ? layout[0]!.findIndex((v) => v !== null) + 1 : 1;
 
   const stepField = (
     axis: 'X' | 'Y',
@@ -156,6 +169,27 @@ export default function PrintPage(): React.JSX.Element {
 
       <div className="flex flex-wrap items-start gap-5">
         <Card className="flex flex-[1_1_300px] flex-col gap-4 p-5 print:hidden">
+          {manualCount > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-adm-sm font-bold text-adm-ink2">印刷する人</span>
+              <Segmented
+                items={[
+                  {
+                    key: 'all',
+                    label: `全員（${participants.length}人）`,
+                    pressed: !showManualOnly,
+                    onClick: () => setOnlyManual(false),
+                  },
+                  {
+                    key: 'manual',
+                    label: `手入力で追加した人（${manualCount}人）`,
+                    pressed: showManualOnly,
+                    onClick: () => setOnlyManual(true),
+                  },
+                ]}
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <span className="text-adm-sm font-bold text-adm-ink2">用紙</span>
             {(['label24'] as const).map((key) => {
@@ -196,6 +230,41 @@ export default function PrintPage(): React.JSX.Element {
             <span className="text-adm-sm font-bold text-adm-ink2">すき間（mm）</span>
             {stepField('X', '横のすき間', printOptions.gapXmm, 0, 10, (v) => setPrintOptions({ gapXmm: v }))}
             {stepField('Y', '縦のすき間', printOptions.gapYmm, 0, 10, (v) => setPrintOptions({ gapYmm: v }))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-adm-sm font-bold text-adm-ink2">刷り始める段</span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label="刷り始める段を1つ上に"
+                onClick={() => setStartRow((v) => clampNum(v - 1, 1, rowsPerSheet))}
+              >
+                −
+              </Button>
+              <input
+                type="number"
+                value={start}
+                min={1}
+                max={rowsPerSheet}
+                step={1}
+                aria-label="刷り始める段"
+                onChange={(e) => setStartRow(clampNum(Math.round(Number(e.target.value)), 1, rowsPerSheet))}
+                className="w-20 min-h-10 rounded-lg border border-adm-line-strong bg-adm-surface px-2.5 text-center text-adm-table text-adm-ink focus-visible:outline-2 focus-visible:outline-adm-primary"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label="刷り始める段を1つ下に"
+                onClick={() => setStartRow((v) => clampNum(v + 1, 1, rowsPerSheet))}
+              >
+                ＋
+              </Button>
+            </div>
+            <p className="text-adm-xs text-adm-sub">
+              使いかけのラベル用紙に刷るときは、空いている最初の段を選びます。
+            </p>
           </div>
 
           <label className="flex items-center gap-2 text-adm-table">
@@ -247,12 +316,12 @@ export default function PrintPage(): React.JSX.Element {
         <Card className="min-w-0 flex-[999_1_480px] p-5 print:border-0 print:p-0">
           <div className="print:hidden">
             <CardTitle>
-              A4 {chunks.length}枚（{people.length}人）
+              A4 {sheets.length}枚（{filtered.length}人）
             </CardTitle>
           </div>
           <div className="mt-4 flex flex-col gap-4 print:mt-0 print:gap-0">
-            {chunks.map((rows, i) => (
-              <div key={`${effectivePreset}-${i}`}>
+            {sheets.map((rows, i) => (
+              <div key={`${effectivePreset}-${start}-${i}`}>
                 <div className="mb-1 text-adm-xs text-adm-sub print:hidden">用紙 {i + 1}</div>
                 <div className="rounded border border-adm-line bg-white print:border-0">
                   <FitToWidth designWidthPx={SHEET_WIDTH_PX}>
@@ -266,6 +335,7 @@ export default function PrintPage(): React.JSX.Element {
                       showCount={printOptions.showCount}
                       sharedCounts={sharedCounts}
                       testMode={testMode}
+                      startRow={i === 0 && firstStart > 1 ? firstStart : undefined}
                     />
                   </FitToWidth>
                 </div>

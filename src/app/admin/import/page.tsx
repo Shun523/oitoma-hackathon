@@ -17,7 +17,7 @@ import { Segmented } from '@/components/ui/Segmented';
 import { StatCard } from '@/components/ui/StatCard';
 import { TagChip } from '@/components/ui/TagChip';
 import { showToast } from '@/components/ui/Toast';
-import { IconCheck, IconPrinter, IconSparkle, IconUpload, IconUserPlus } from '@/components/ui/icons';
+import { IconCheck, IconPrinter, IconSparkle, IconTrash, IconUpload, IconUserPlus } from '@/components/ui/icons';
 import { PageFooter } from '@/components/PageFooter';
 import { PageHeader } from '@/components/PageHeader';
 import {
@@ -139,6 +139,8 @@ export default function ImportPage(): React.JSX.Element {
   const generatingAll = useStore((s) => s.running);
   const printPreset = useStore((s) => s.printOptions.preset);
   const addParticipant = useStore((s) => s.addParticipant);
+  const removeManualParticipant = useStore((s) => s.removeManualParticipant);
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
   const [parsed, setParsed] = useState<Parsed | null>(null);
   const [error, setError] = useState<ImportError | null>(null);
   const [done, setDone] = useState(false);
@@ -819,6 +821,7 @@ export default function ImportPage(): React.JSX.Element {
                       <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">追加した時刻</th>
                       <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">個性タグ</th>
                       <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">共有タグ</th>
+                      <th scope="col" className="whitespace-nowrap border-b border-adm-divider px-4 py-2.5 text-adm-sm font-bold">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -853,6 +856,11 @@ export default function ImportPage(): React.JSX.Element {
                               <span className="text-adm-sm text-adm-sub">タグを作るときに一緒に作ります</span>
                             )}
                           </td>
+                          <td className="whitespace-nowrap border-b border-adm-divider px-4 py-3 align-top">
+                            <Button variant="secondary" size="sm" icon={<IconTrash size={16} />} onClick={() => setPendingRemove(p.id)}>
+                              取り消す
+                            </Button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -875,6 +883,24 @@ export default function ImportPage(): React.JSX.Element {
           commitImport();
         }}
         onCancel={() => setPendingImport(false)}
+      />
+
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        title={`${pendingRemove !== null ? (participants.find((p) => p.id === pendingRemove)?.name ?? '') : ''}さんを取り消しますか？`}
+        body="この人の回答とタグを消します。ほかの人のタグは変わりません。"
+        confirmLabel="取り消す"
+        tone="danger"
+        onConfirm={() => {
+          const id = pendingRemove;
+          setPendingRemove(null);
+          if (id !== null) {
+            const target = participants.find((p) => p.id === id);
+            removeManualParticipant(id);
+            if (target) showToast(`${target.name}さんを取り消しました`);
+          }
+        }}
+        onCancel={() => setPendingRemove(null)}
       />
 
       <PageFooter

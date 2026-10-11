@@ -1,7 +1,8 @@
 // src/app/admin/review/page.tsx
-// 確認・修正。数字カード＋参加者の表＋選んだ人の詳細（共有タグタブはU3で作り替える）。
+// 確認と修正。数字カード＋参加者の表＋選んだ人の詳細（共有タグタブはU3で作り替える）。
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { GuideCard } from '@/components/GuideCard';
 import { TagInput } from '@/components/TagInput';
@@ -65,6 +66,7 @@ function stamp(date: Date): string {
 
 export default function ReviewPage(): React.JSX.Element {
   const hydrated = useHydrated();
+  const searchParams = useSearchParams();
   const participants = useStore((s) => s.participants);
   const params = useStore((s) => s.params);
   const extractions = useStore((s) => s.extractions);
@@ -78,8 +80,9 @@ export default function ReviewPage(): React.JSX.Element {
   const [tab, setTab] = useState<'tags' | 'people'>('people');
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [jumpId, setJumpId] = useState<string | null>(null);
+  const initialId = searchParams.get('id');
+  const [selectedId, setSelectedId] = useState<string | null>(initialId);
+  const [jumpId, setJumpId] = useState<string | null>(initialId);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
   const [regenerating, setRegenerating] = useState<string | null>(null);
@@ -387,7 +390,10 @@ export default function ReviewPage(): React.JSX.Element {
                               className="text-left focus-visible:outline-2 focus-visible:outline-adm-primary"
                             >
                               <span className="block font-bold">{p.name}</span>
-                              <span className="block text-adm-xs text-adm-sub">{p.category}</span>
+                              <span className="flex items-center gap-1 text-adm-xs text-adm-sub">
+                                {p.category}
+                                {p.source === 'manual' && <Badge tone="neutral">手入力</Badge>}
+                              </span>
                             </button>
                           </td>
                           <td className="border-b border-adm-divider px-4 py-3 align-top text-adm-ink2">
@@ -530,6 +536,11 @@ export default function ReviewPage(): React.JSX.Element {
                 <div className="text-adm-sm text-adm-sub">
                   {shown.affiliation}・{shown.category}
                 </div>
+                {shown.source === 'manual' && (
+                  <div className="mt-1">
+                    <Badge tone="neutral">手入力</Badge>
+                  </div>
+                )}
                 {shownAssignment.flags.length > 0 && (
                   <div className="mt-2">
                     <Notice
