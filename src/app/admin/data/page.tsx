@@ -1,14 +1,19 @@
 // src/app/admin/data/page.tsx
-// 状態の書き出し・読み込み、公開用データの書き出し、消去。
+// 作業データの保存・読み込み、公開ページ用のファイルの書き出し、このPCのデータの消去。
 'use client';
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { PageFooter } from '@/components/PageFooter';
-import { PageHeader } from '@/components/PageHeader';
+import { useRef, useState } from 'react';
 import { buildPublishedData } from '@/lib/publish';
 import { appStateSchema, useHydrated, useStore } from '@/lib/store';
 import type { AppState } from '@/lib/types';
+import { Button } from '@/components/ui/Button';
+import { Card, CardTitle } from '@/components/ui/Card';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Notice } from '@/components/ui/Notice';
+import { IconSave, IconTrash } from '@/components/ui/icons';
+import { showToast } from '@/components/ui/Toast';
+import { PageFooter } from '@/components/PageFooter';
+import { PageHeader } from '@/components/PageHeader';
 
 function download(filename: string, text: string): void {
   const blob = new Blob([text], { type: 'application/json' });
@@ -33,6 +38,9 @@ export default function DataPage(): React.JSX.Element {
   const replaceAll = useStore((s) => s.replaceAll);
   const clearAll = useStore((s) => s.clearAll);
   const [maskNames, setMaskNames] = useState(true);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   if (!hydrated) {
     return <p>読み込み中…</p>;
@@ -58,18 +66,23 @@ export default function DataPage(): React.JSX.Element {
 
   const onExport = (): void => {
     download(`nametag-state-${stamp(new Date())}.json`, `${JSON.stringify(snapshot(), null, 2)}\n`);
+    showToast('作業データを保存しました');
   };
 
-  const onImport = async (file: File | undefined): Promise<void> => {
+  const onPickFile = (file: File | undefined): void => {
     if (!file) return;
+    setPendingFile(file);
+  };
+
+  const onImport = async (file: File): Promise<void> => {
     try {
       const parsed = appStateSchema.safeParse(JSON.parse(await file.text()));
       if (!parsed.success) {
         window.alert('状態のJSONとして読めませんでした');
         return;
       }
-      if (!window.confirm('いまの内容を上書きします。続けますか？')) return;
       replaceAll(parsed.data);
+      showToast('作業データを開きました');
     } catch {
       window.alert('状態のJSONとして読めませんでした');
     }
@@ -85,73 +98,102 @@ export default function DataPage(): React.JSX.Element {
       maskNames,
     });
     download('published.json', `${JSON.stringify(published, null, 2)}\n`);
-  };
-
-  const onClear = (): void => {
-    if (!window.confirm('保存中のデータをすべて消去します。よろしいですか？')) return;
-    clearAll();
+    showToast('公開ページ用のファイルを書き出しました');
   };
 
   return (
-    <div className="space-y-6 py-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
         title="保存・バックアップ"
         description="作業データをファイルに保存したり、公開ページ用のファイルを書き出したりします。"
       />
-      <h1 className="text-xl font-bold">データ</h1>
-      <p className="text-sm text-gray-600">保存中のデータ量：約{sizeKb}KB</p>
 
-      <section className="space-y-2">
-        <h2 className="font-bold">状態の書き出し・読み込み</h2>
-        <p className="text-sm text-gray-600">発表では生成済みの状態を書き出し、発表用PCで読み込んで使います。</p>
+      <Card className="flex flex-col gap-3 p-5">
+        <CardTitle>作業データ</CardTitle>
+        <p className="text-adm-sm text-adm-ink2">
+          発表や別のPCで続きをするときに使います。回答とタグをすべて含むので、他の人には渡さないでください。
+        </p>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onExport} className="rounded border px-4 py-2 text-sm">
-            状態を書き出す
-          </button>
-          <label className="cursor-pointer rounded border px-4 py-2 text-sm">
-            状態を読み込む
-            <input
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={(e) => void onImport(e.target.files?.[0])}
-            />
-          </label>
+          <Button variant="primary" icon={<IconSave size={16} />} onClick={onExport}>
+            作業データを保存
+          </Button>
+          <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+            保存した作業データを開く
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={(e) => {
+              onPickFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
         </div>
-      </section>
+        <p className="text-adm-xs text-adm-sub">このPCに保存中のデータ：約{sizeKb}KB</p>
+      </Card>
 
-      <section className="space-y-2">
-        <h2 className="font-bold">公開用データの書き出し</h2>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={maskNames} onChange={(e) => setMaskNames(e.target.checked)} />
-          名前を伏せる
+      <Card className="flex flex-col gap-3 p-5">
+        <CardTitle>公開ページ用のファイル</CardTitle>
+        <p className="text-adm-sm text-adm-ink2">
+          QRで開く公開ページに載せるデータです。自己紹介と一言は入りません。
+        </p>
+        <label className="flex items-center gap-2 text-adm-table">
+          <input
+            type="checkbox"
+            checked={maskNames}
+            onChange={(e) => setMaskNames(e.target.checked)}
+            className="size-4 accent-adm-primary"
+          />
+          名前を伏せる（おすすめ）
         </label>
         <div>
-          <button type="button" onClick={onPublish} className="rounded border px-4 py-2 text-sm">
-            公開用データを書き出す
-          </button>
+          <Button variant="secondary" onClick={onPublish}>
+            公開ページ用のファイルを書き出す
+          </Button>
         </div>
-        <p className="text-sm text-gray-600">
-          `src/data/published.json` を置き換えてpushすると、Vercelの公開トップに反映されます
-        </p>
+        <Notice
+          tone="info"
+          title="書き出した published.json で src/data/published.json を置き換えてpushすると、公開ページに反映されます。"
+        />
+      </Card>
+
+      <section className="flex flex-col gap-3 rounded-xl border border-adm-danger-line bg-adm-danger-bg p-5">
+        <CardTitle>このPCからデータを消す</CardTitle>
+        <p className="text-adm-sm text-adm-ink2">イベントが終わったら消してください。消すと元に戻せません。</p>
+        <div>
+          <Button variant="danger" icon={<IconTrash size={16} />} onClick={() => setConfirmClear(true)}>
+            このPCからデータを消す
+          </Button>
+        </div>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="font-bold">消去</h2>
-        <button
-          type="button"
-          onClick={onClear}
-          className="rounded border border-red-500 px-4 py-2 text-sm text-red-700"
-        >
-          すべて消去
-        </button>
-      </section>
+      <ConfirmDialog
+        open={pendingFile !== null}
+        title="保存した作業データを開きますか？"
+        body="今のデータは置き換わります。"
+        confirmLabel="開く"
+        onConfirm={() => {
+          const file = pendingFile;
+          setPendingFile(null);
+          if (file) void onImport(file);
+        }}
+        onCancel={() => setPendingFile(null)}
+      />
 
-      <p className="text-sm">
-        <Link href="/admin/import" className="underline">
-          取り込みへ戻る
-        </Link>
-      </p>
+      <ConfirmDialog
+        open={confirmClear}
+        title="すべてのデータを消しますか？"
+        body="回答、タグ、手で直した内容がこのPCから消えます。元には戻せません。"
+        confirmLabel="消す"
+        tone="danger"
+        onConfirm={() => {
+          setConfirmClear(false);
+          clearAll();
+        }}
+        onCancel={() => setConfirmClear(false)}
+      />
 
       <PageFooter />
     </div>

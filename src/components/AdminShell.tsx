@@ -8,9 +8,29 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { adminFont } from '@/app/admin/fonts';
 import { EVENT } from '@/config/event';
 import { useHydrated, useStore } from '@/lib/store';
+import type { AppState } from '@/lib/types';
+import { Button } from './ui/Button';
 import { Card } from './ui/Card';
-import { ToastHost } from './ui/Toast';
+import { Notice } from './ui/Notice';
+import { ToastHost, showToast } from './ui/Toast';
 import { IconCheck, IconSave } from './ui/icons';
+
+function download(filename: string, text: string): void {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function stamp(date: Date): string {
+  const pad = (v: number): string => String(v).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
 
 const STEPS = [
   { href: '/admin/import', label: '回答を読み込む' },
@@ -28,6 +48,7 @@ export function AdminShell({ children }: { children: ReactNode }): React.JSX.Ele
   const hydrated = useHydrated();
   const participantCount = useStore((s) => s.participants.length);
   const generated = useStore((s) => s.generatedAt !== null);
+  const saveError = useStore((s) => s.saveError);
   const [mode, setMode] = useState<'mock' | 'live' | null>(null);
 
   useEffect(() => {
@@ -45,6 +66,28 @@ export function AdminShell({ children }: { children: ReactNode }): React.JSX.Ele
 
   const doneList = [participantCount > 0, generated, false, false];
   const dataActive = pathname.startsWith('/admin/data');
+
+  const saveWork = (): void => {
+    const s = useStore.getState();
+    const snapshot: AppState = {
+      version: 1,
+      participants: s.participants,
+      importedAt: s.importedAt,
+      params: s.params,
+      extractions: s.extractions,
+      candidates: s.candidates,
+      rankings: s.rankings,
+      activeTagIds: s.activeTagIds,
+      assignments: s.assignments,
+      summary: s.summary,
+      progress: s.progress,
+      llmLog: s.llmLog,
+      generatedAt: s.generatedAt,
+      printOptions: s.printOptions,
+    };
+    download(`nametag-state-${stamp(new Date())}.json`, `${JSON.stringify(snapshot, null, 2)}\n`);
+    showToast('作業データを保存しました');
+  };
 
   return (
     <div
@@ -113,6 +156,19 @@ export function AdminShell({ children }: { children: ReactNode }): React.JSX.Ele
       </nav>
       <main className="min-w-0 flex-[999_1_560px] px-8 pb-10 pt-7 print:p-0">
         <div className="mx-auto flex max-w-[1120px] flex-col gap-5">
+          {saveError && (
+            <Notice
+              tone="warn"
+              title="このPCのブラウザに保存できませんでした"
+              action={
+                <Button variant="secondary" size="sm" onClick={saveWork}>
+                  作業データを保存
+                </Button>
+              }
+            >
+              念のため、作業データをファイルに保存してください。
+            </Notice>
+          )}
           {!hydrated && (
             <Card className="p-5">
               <p className="py-12 text-center text-adm-sub">読み込み中…</p>

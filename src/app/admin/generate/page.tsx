@@ -2,9 +2,10 @@
 // タグの一括生成と進み具合、生成の様子の再生。
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { GenerationReplay, formatTotal } from '@/components/GenerationReplay';
+import { GuideCard } from '@/components/GuideCard';
+import { toOitomaNotice } from '@/components/oitoma-error';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -125,11 +126,11 @@ export default function GeneratePage(): React.JSX.Element {
           title="タグを作る"
           description="おいとまが全員の回答を読み、共有タグと個性タグを作ります。人数によっては数分かかります。"
         />
-        <h1 className="text-xl font-bold">2 生成</h1>
-        <p>まだ回答を取り込んでいません。</p>
-        <Link href="/admin/import" className="inline-block rounded border px-3 py-2 text-sm">
-          取り込みへ
-        </Link>
+        <GuideCard
+          title="まだ回答を読み込んでいません"
+          description="参加登録フォームの回答を先に読み込みます。"
+          next={{ href: '/admin/import', label: '1 回答を読み込むへ' }}
+        />
         <PageFooter next={{ href: '/admin/review', label: '確認・修正', disabled: true }} />
       </div>
     );
@@ -167,6 +168,7 @@ export default function GeneratePage(): React.JSX.Element {
   const errorPhase = PHASE_META.map((meta, index) => ({ ...meta, index, p: progress.find((q) => q.key === meta.key) })).find(
     (x) => x.p?.status === 'error',
   );
+  const failureMapped = errorPhase?.p !== undefined ? toOitomaNotice(errorPhase.p.message ?? '') : null;
 
   const checkConnection = async (): Promise<void> => {
     setChecking(true);
@@ -340,7 +342,7 @@ export default function GeneratePage(): React.JSX.Element {
         </Notice>
       )}
 
-      {errorPhase?.p !== undefined && !running && (
+      {errorPhase?.p !== undefined && failureMapped !== null && !running && (
         <Notice
           tone="danger"
           title={`${errorPhase.name}で止まりました`}
@@ -350,7 +352,7 @@ export default function GeneratePage(): React.JSX.Element {
             </Button>
           }
         >
-          {errorPhase.p.message ?? 'もう一度試してください。'}
+          {failureMapped.body}
         </Notice>
       )}
 

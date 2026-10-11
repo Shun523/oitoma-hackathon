@@ -2,9 +2,10 @@
 // 確認・修正。数字カード＋参加者の表＋選んだ人の詳細（共有タグタブはU3で作り替える）。
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
+import { GuideCard } from '@/components/GuideCard';
 import { TagInput } from '@/components/TagInput';
+import { toOitomaNotice } from '@/components/oitoma-error';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardToolbar } from '@/components/ui/Card';
@@ -96,11 +97,11 @@ export default function ReviewPage(): React.JSX.Element {
           title="確認・修正"
           description="おいとまが作ったタグを見て、気になるものだけ直します。"
         />
-        <h1 className="text-xl font-bold">3 確認</h1>
-        <p>まだ回答を取り込んでいません。</p>
-        <Link href="/admin/import" className="inline-block rounded border px-3 py-2 text-sm">
-          取り込みへ
-        </Link>
+        <GuideCard
+          title="まだ回答を読み込んでいません"
+          description="参加登録フォームの回答を先に読み込みます。"
+          next={{ href: '/admin/import', label: '1 回答を読み込むへ' }}
+        />
         <PageFooter next={{ href: '/admin/print', label: 'シールを印刷', disabled: true }} />
       </div>
     );
@@ -114,11 +115,11 @@ export default function ReviewPage(): React.JSX.Element {
           title="確認・修正"
           description="おいとまが作ったタグを見て、気になるものだけ直します。"
         />
-        <h1 className="text-xl font-bold">3 確認</h1>
-        <p>まだタグを生成していません。</p>
-        <Link href="/admin/generate" className="inline-block rounded border px-3 py-2 text-sm">
-          生成へ
-        </Link>
+        <GuideCard
+          title="まだタグを作っていません"
+          description="おいとまでタグを作ってから、ここで確認します。"
+          next={{ href: '/admin/generate', label: '2 タグを作るへ' }}
+        />
         <PageFooter next={{ href: '/admin/print', label: 'シールを印刷', disabled: true }} />
       </div>
     );
@@ -156,6 +157,10 @@ export default function ReviewPage(): React.JSX.Element {
     (participants.find((p) => (assignments[p.id]?.flags.length ?? 0) > 0) ?? participants[0]) ?? null;
   const shown = selected ?? firstFallback;
   const shownAssignment = shown ? assignments[shown.id] : undefined;
+  const regenMapped =
+    regenError !== null && shown !== null && regenError.id === shown.id
+      ? toOitomaNotice(regenError.message)
+      : null;
 
   const answeredCount = participants.filter((p) => p.intro !== '' || p.hobby !== '').length;
   const noConsentCount = participants.filter((p) => !p.consent).length;
@@ -615,7 +620,11 @@ export default function ReviewPage(): React.JSX.Element {
                       {regenerating === shown.id ? '考えています…' : 'おいとまに別案を出してもらう'}
                     </Button>
                   </div>
-                  {regenError?.id === shown.id && <Notice tone="danger" title={regenError.message} />}
+                  {regenMapped !== null && (
+                    <Notice tone="danger" title={regenMapped.title}>
+                      {regenMapped.body}
+                    </Notice>
+                  )}
 
                   <div className="flex items-center gap-1 text-adm-sm font-bold text-adm-ink2">
                     共有タグ

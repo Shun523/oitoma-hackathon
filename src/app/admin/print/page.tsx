@@ -2,9 +2,9 @@
 // 話題シールのプレビューと印刷。ブラウザの印刷機能を使う。
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { FitToWidth } from '@/components/FitToWidth';
+import { GuideCard } from '@/components/GuideCard';
 import { SHEET_WIDTH_PX, StickerSheet } from '@/components/StickerSheet';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -58,11 +58,11 @@ export default function PrintPage(): React.JSX.Element {
           title="シールを印刷"
           description="1人分のシール3枚が横1行に並びます。印刷したら行ごとに切って、受付で渡します。"
         />
-        <h1 className="text-xl font-bold">4 印刷</h1>
-        <p>まだ回答を取り込んでいません。</p>
-        <Link href="/admin/import" className="inline-block rounded border px-3 py-2 text-sm">
-          取り込みへ
-        </Link>
+        <GuideCard
+          title="まだ回答を読み込んでいません"
+          description="参加登録フォームの回答を先に読み込みます。"
+          next={{ href: '/admin/import', label: '1 回答を読み込むへ' }}
+        />
         <PageFooter />
       </div>
     );
@@ -76,11 +76,11 @@ export default function PrintPage(): React.JSX.Element {
           title="シールを印刷"
           description="1人分のシール3枚が横1行に並びます。印刷したら行ごとに切って、受付で渡します。"
         />
-        <h1 className="text-xl font-bold">4 印刷</h1>
-        <p>まだタグを生成していません。</p>
-        <Link href="/admin/generate" className="inline-block rounded border px-3 py-2 text-sm">
-          生成へ
-        </Link>
+        <GuideCard
+          title="まだタグを作っていません"
+          description="タグを作ってから印刷します。"
+          next={{ href: '/admin/generate', label: '2 タグを作るへ' }}
+        />
         <PageFooter />
       </div>
     );
