@@ -1,6 +1,7 @@
 // src/lib/llm/mock.ts
 // おいとまを呼ばず、決まった結果を返す（サーバー・スクリプト・テスト共用）。
 // 同じ入力なら毎回同じ結果になるようにし、乱数は使わない。
+import { elapsedMs } from '../time';
 import { displayLength, sanitizeTag } from '../text';
 import type { CatalogInput, ExtractInput, LlmApi, RankInput, SharedTag } from '../types';
 
@@ -90,17 +91,17 @@ function dictByLabel(label: string): TopicDict | undefined {
 
 export const mockLlmApi: LlmApi = {
   async extract(people: ExtractInput[]) {
-    const started = Date.now();
+    const started = performance.now();
     await mockWait(people.map((p) => p.id).join(','));
     const results = people.map((p) => {
       const { topics, personal } = extractOne(p);
       return { id: p.id, topics, personal };
     });
-    return { results, missing: [], meta: { attempts: 1, ms: Date.now() - started } };
+    return { results, missing: [], meta: { attempts: 1, ms: elapsedMs(started) } };
   },
 
   async catalog(people: CatalogInput[], params: { candidateCount: number }) {
-    const started = Date.now();
+    const started = performance.now();
     await mockWait(people.map((p) => p.id).join(','));
     const scored = MOCK_TOPICS.map((entry) => {
       let count = 0;
@@ -114,11 +115,11 @@ export const mockLlmApi: LlmApi = {
     const tags = scored
       .slice(0, Math.max(0, params.candidateCount))
       .map((s) => ({ label: s.entry.label, covers: s.entry.covers }));
-    return { tags, meta: { attempts: 1, ms: Date.now() - started } };
+    return { tags, meta: { attempts: 1, ms: elapsedMs(started) } };
   },
 
   async rank(tags: SharedTag[], people: RankInput[], rankLength: number) {
-    const started = Date.now();
+    const started = performance.now();
     await mockWait(`${tags.map((t) => t.id).join(',')}|${people.map((p) => p.id).join(',')}`);
     const results = people.map((p) => {
       const hay = normHay(`${p.topics.join('\n')}\n${p.hobby}`);
@@ -131,11 +132,11 @@ export const mockLlmApi: LlmApi = {
       scored.sort((a, b) => b.score - a.score || a.tie - b.tie);
       return { id: p.id, ranked: scored.slice(0, rankLength).map((s) => s.id) };
     });
-    return { results, missing: [], meta: { attempts: 1, ms: Date.now() - started } };
+    return { results, missing: [], meta: { attempts: 1, ms: elapsedMs(started) } };
   },
 
   async summary(tags: { label: string; count: number }[]) {
-    const started = Date.now();
+    const started = performance.now();
     await mockWait(tags.map((t) => t.label).join(','));
     const sorted = [...tags].sort((a, b) => b.count - a.count);
     const text =
@@ -144,11 +145,11 @@ export const mockLlmApi: LlmApi = {
         : sorted.length === 1
           ? `今日は『${sorted[0].label}』の仲間が多い会場です。話題シールのタグを見て、気軽に話しかけてみましょう。`
           : '今日はさまざまな話題の仲間が多い会場です。話題シールのタグを見て、気軽に話しかけてみましょう。';
-    return { text, meta: { attempts: 1, ms: Date.now() - started } };
+    return { text, meta: { attempts: 1, ms: elapsedMs(started) } };
   },
 
   async regenerate(person: ExtractInput & { topics: string[] }, avoid: string[]) {
-    const started = Date.now();
+    const started = performance.now();
     await mockWait(person.id);
     const topic = person.topics[0] ?? person.hobby.slice(0, 12) ?? person.category;
     const hobby = person.hobby.trim();
@@ -157,6 +158,6 @@ export const mockLlmApi: LlmApi = {
       .filter((s, i, arr) => s !== '' && isTagOk(s) && !avoid.includes(s) && arr.indexOf(s) === i)
       .slice(0, 3);
     const personal = candidates.length > 0 ? candidates : ['話しかけてね'];
-    return { personal, meta: { attempts: 1, ms: Date.now() - started } };
+    return { personal, meta: { attempts: 1, ms: elapsedMs(started) } };
   },
 };

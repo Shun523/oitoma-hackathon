@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { guessColumns, readSheet, toParticipants, type SheetData } from './forms';
+import { guessColumns, previewParticipants, readSheet, toParticipants, type SheetData } from './forms';
 
 function loadSample40(): SheetData {
   const file = path.join(process.cwd(), 'public', 'samples', 'sample-40.xlsx');
@@ -60,11 +60,39 @@ describe('forms consent', () => {
 });
 
 describe('forms limits', () => {
+  it('retains an invalid preview and recovers by correcting the name mapping', () => {
+    const sheet = { headers: ['参加者表記', '空欄'], rows: Array.from({ length: 6 }, (_, i) => [`名前${i}`, '']) };
+    expect(previewParticipants(sheet, guessColumns(sheet.headers)).validationError).toContain('名前の列');
+    expect(previewParticipants(sheet, { name: 1 }).participants).toEqual([]);
+    const fixed = previewParticipants(sheet, { name: 0 });
+    expect(fixed.validationError).toBeNull();
+    expect(fixed.participants).toHaveLength(6);
+    expect(toParticipants(sheet, { name: 0 }).participants).toEqual(fixed.participants);
+  });
   it('throws when fewer than 6 people', () => {
     const sheet: SheetData = {
       headers: ['お名前'],
       rows: [['a'], ['b'], ['c'], ['d'], ['e']],
     };
     expect(() => toParticipants(sheet, guessColumns(sheet.headers))).toThrow();
+  });
+});
+
+describe('forms sample-15', () => {
+  it('imports 15 people all with intro, hobby and consent', () => {
+    const file = path.join(process.cwd(), 'public', 'samples', 'sample-15.xlsx');
+    const sheet = readSheet(new Uint8Array(readFileSync(file)));
+    const { participants, warnings } = toParticipants(sheet, guessColumns(sheet.headers));
+    expect(participants.length).toBe(15);
+    expect(warnings).toEqual([]);
+    expect(participants.filter((p) => !p.consent).length).toBe(0);
+    for (const p of participants) {
+      expect(p.intro).not.toBe('');
+      expect(p.hobby).not.toBe('');
+    }
+    const categories = new Set(participants.map((p) => p.category));
+    for (const c of ['学生', '教員', '職員', '企業'] as const) {
+      expect(categories.has(c)).toBe(true);
+    }
   });
 });

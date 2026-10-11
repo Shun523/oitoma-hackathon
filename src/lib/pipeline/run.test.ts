@@ -8,7 +8,7 @@ import { directLlmApi } from '../llm/tasks';
 import { computeMetrics } from '../metrics';
 import { displayLength } from '../text';
 import type { ExtractInput, LlmApi, Participant } from '../types';
-import { emptySnapshot, runGeneration } from './run';
+import { emptySnapshot, runGeneration, type GenerationSnapshot } from './run';
 
 const prevEnv = { ...process.env };
 
@@ -36,6 +36,69 @@ function toExtractInput(p: Participant): ExtractInput {
 }
 
 describe('runGeneration with mock', () => {
+  it('saves initial progress before the first response so immediate cancellation can resume', async () => {
+    const controller = new AbortController();
+    const updates: GenerationSnapshot[] = [];
+    const api: LlmApi = {
+      ...directLlmApi,
+      extract: async () => { controller.abort(); throw controller.signal.reason; },
+    };
+    await expect(runGeneration({
+      participants: loadParticipants(), start: emptySnapshot(), api, signal: controller.signal,
+      onUpdate: snap => updates.push(snap),
+    })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(updates[0].params.n).toBe(40);
+    expect(updates[0].progress[0].status).toBe('running');
+    expect(Object.keys(updates[0].extractions)).toHaveLength(0);
+  });
+
+  it('recovers missing rankings without calling rank with fewer than two tags', async () => {
+    const tagCounts: number[] = [];
+    const api: LlmApi = {
+      ...directLlmApi,
+      rank: async tags => {
+        tagCounts.push(tags.length);
+        return { results: [], missing: [], meta: { attempts: 1, ms: 1 } };
+      },
+    };
+    const snap = await runGeneration({ participants: loadParticipants(), start: emptySnapshot(), api, onUpdate() {} });
+    expect(tagCounts.every(count => count >= 2)).toBe(true);
+    expect(snap.activeTagIds).toHaveLength(2);
+    for (const assignment of Object.values(snap.assignments)) {
+      expect(assignment.sharedTagIds).toHaveLength(2);
+      expect(assignment.flags).toContain('fallback_shared');
+    }
+  });
+
+  it.each(['extract', 'catalog', 'rank', 'summary'] as const)('stops after cancellation during %s', async phase => {
+    const controller = new AbortController();
+    const api: LlmApi = {
+      ...directLlmApi,
+      [phase]: async (...args: never[]) => {
+        const result = await (directLlmApi[phase] as (...params: never[]) => Promise<unknown>)(...args);
+        controller.abort();
+        return result;
+      },
+    };
+    const seen: string[] = [];
+    await expect(runGeneration({
+      participants: loadParticipants(), start: emptySnapshot(), api, signal: controller.signal,
+      onUpdate: snap => { if (controller.signal.aborted) seen.push(snap.progress[0].status); },
+    })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(seen).toEqual([]);
+  });
+
+  it('supports two independent users with the same participant IDs', async () => {
+    const first = loadParticipants();
+    const second = first.map(p => ({ ...p, hobby: '架空のゲーム好き', intro: 'ゲームの趣味' }));
+    const [a, b] = await Promise.all([first, second].map(participants => runGeneration({ participants, start: emptySnapshot(), api: directLlmApi, onUpdate() {} })));
+    expect(a.assignments.P001.personalTag).not.toBe(b.assignments.P001.personalTag);
+    expect(a.extractions.P001).not.toEqual(b.extractions.P001);
+    for (const snapshot of [a, b]) {
+      expect(Object.keys(snapshot.assignments)).toHaveLength(40);
+      expect(Object.values(snapshot.assignments).every(x => x.sharedTagIds.length === 2)).toBe(true);
+    }
+  });
   it('assigns a personal tag and two different shared tags to everyone', async () => {
     const participants = loadParticipants();
     const snap = await runGeneration({

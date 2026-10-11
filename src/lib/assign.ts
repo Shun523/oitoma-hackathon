@@ -100,3 +100,25 @@ export function assignSharedTags(input: AssignInput): AssignResult {
   const shortIds = participantIds.filter((pid) => (held[pid] ?? []).length < 2);
   return { held, activeIds, shortIds };
 }
+
+export interface AssignOneInput {
+  ranking: string[]; // おいとまの当てはまり順（候補ID）
+  activeIds: string[]; // 採用タグ（候補の並び順）
+  counts: Record<string, number>; // 今の各採用タグの人数（この人を含まない）
+}
+
+export function assignOne(input: AssignOneInput): { sharedTagIds: string[]; usedFallback: boolean } {
+  const { ranking, activeIds, counts } = input;
+  // 当てはまり順のうち採用タグにあるものを、先頭から重複なしで2つまで取る。
+  const picked: string[] = [];
+  for (const tid of ranking) {
+    if (picked.length >= 2) break;
+    if (activeIds.includes(tid) && !picked.includes(tid)) picked.push(tid);
+  }
+  if (picked.length >= 2) return { sharedTagIds: picked, usedFallback: false };
+  // 足りなければ、まだ持っていない採用タグを人数の少ない順、同数なら採用タグの並び順で足す。
+  const rest = activeIds
+    .filter((tid) => !picked.includes(tid))
+    .sort((a, b) => (counts[a] ?? 0) - (counts[b] ?? 0) || activeIds.indexOf(a) - activeIds.indexOf(b));
+  return { sharedTagIds: [...picked, ...rest].slice(0, 2), usedFallback: true };
+}

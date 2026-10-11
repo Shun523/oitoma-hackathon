@@ -1,6 +1,8 @@
 // src/lib/llm/schemas.ts
 // おいとまの出力とAPI入力の検証（zod）。
 import { z } from 'zod';
+import { generationParamsSchema, MAX_CATALOG_TAGS } from '../generation-params';
+export { generationParamsSchema } from '../generation-params';
 
 export const extractOutputSchema = z.object({
   results: z.array(
@@ -67,15 +69,6 @@ export const sharedTagInputSchema = z.object({
   covers: z.string(),
 });
 
-export const generationParamsSchema = z.object({
-  n: z.number(),
-  targetSize: z.number(),
-  minSize: z.number(),
-  maxSize: z.number(),
-  candidateCount: z.number(),
-  rankLength: z.number(),
-});
-
 export const extractApiSchema = z.object({
   people: z.array(extractInputSchema).min(1).max(10),
 });
@@ -86,7 +79,7 @@ export const catalogApiSchema = z.object({
 });
 
 export const rankApiSchema = z.object({
-  tags: z.array(sharedTagInputSchema).min(2).max(40),
+  tags: z.array(sharedTagInputSchema).min(2).max(MAX_CATALOG_TAGS),
   people: z.array(rankInputSchema).min(1).max(20),
   rankLength: z.number().int().min(1).max(10),
 });

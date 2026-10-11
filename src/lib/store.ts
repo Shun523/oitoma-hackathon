@@ -4,101 +4,26 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { z } from 'zod';
+import { appStateSchema } from './state-schema';
+import { generationOperation } from './pipeline/operation';
+import { refreshAssignmentFlags } from './pipeline/sticker';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_PRINT_OPTIONS } from '../config/event';
+import { applyAddLatecomer, applyAddParticipant, applyRemoveManual } from './state-ops';
 import type { GenerationSnapshot } from './pipeline/run';
 import type {
   AppState,
   Assignment,
   Category,
+  Extraction,
   LlmCallLog,
   Participant,
   PhaseProgress,
   PrintOptions,
 } from './types';
 
-const categorySchema = z.enum(['学生', '教員', '職員', '企業', '自治体', 'その他']);
-
-const participantSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  affiliation: z.string(),
-  category: categorySchema,
-  intro: z.string(),
-  hobby: z.string(),
-  consent: z.boolean(),
-});
-
-// JSONの読み込み時に検証する
-export const appStateSchema = z.object({
-  version: z.literal(1),
-  participants: z.array(participantSchema),
-  importedAt: z.string().nullable(),
-  params: z
-    .object({
-      n: z.number(),
-      targetSize: z.number(),
-      minSize: z.number(),
-      maxSize: z.number(),
-      candidateCount: z.number(),
-      rankLength: z.number(),
-    })
-    .nullable(),
-  extractions: z.record(
-    z.string(),
-    z.object({
-      participantId: z.string(),
-      topics: z.array(z.string()),
-      personalCandidates: z.array(z.string()),
-      source: z.enum(['llm', 'fallback']),
-    }),
-  ),
-  candidates: z.array(z.object({ id: z.string(), label: z.string(), covers: z.string() })),
-  rankings: z.record(z.string(), z.array(z.string())),
-  activeTagIds: z.array(z.string()),
-  assignments: z.record(
-    z.string(),
-    z.object({
-      participantId: z.string(),
-      personalTag: z.string(),
-      sharedTagIds: z.array(z.string()),
-      edited: z.boolean(),
-      flags: z.array(z.enum(['no_answer', 'no_consent', 'ng_word', 'fallback_personal', 'fallback_shared'])),
-    }),
-  ),
-  summary: z.string(),
-  progress: z.array(
-    z.object({
-      key: z.enum(['extract', 'catalog', 'rank', 'assign', 'summary']),
-      status: z.enum(['pending', 'running', 'done', 'error', 'skipped']),
-      done: z.number(),
-      total: z.number(),
-      startedAt: z.number().optional(),
-      finishedAt: z.number().optional(),
-      message: z.string().optional(),
-    }),
-  ),
-  llmLog: z.array(
-    z.object({
-      task: z.enum(['extract', 'catalog', 'rank', 'summary', 'regenerate']),
-      ms: z.number(),
-      ok: z.boolean(),
-      attempts: z.number(),
-      at: z.string(),
-    }),
-  ),
-  generatedAt: z.string().nullable(),
-  printOptions: z.object({
-    preset: z.enum(['label24', 'label21']),
-    showCount: z.boolean(),
-    offsetXmm: z.number(),
-    offsetYmm: z.number(),
-    gapXmm: z.number(),
-    gapYmm: z.number(),
-  }),
-});
+export { appStateSchema } from './state-schema';
 
 function initialAppState(): AppState {
   return {
@@ -149,15 +74,40 @@ interface StoreActions {
   replaceAll: (state: AppState) => void;
   resetGeneration: (scope: 'all' | 'shared') => void;
   clearAll: () => void;
+  addParticipant: (p: Participant) => void;
+  addLatecomer: (added: { participant: Participant; extraction: Extraction; ranking: string[]; assignment: Assignment }) => void;
+  removeManualParticipant: (id: string) => void;
+  setRunning: (v: boolean) => void;
+  beginOperation: () => AbortController | null;
+  finishOperation: (controller: AbortController) => void;
+  cancelOperation: () => void;
 }
 
-type StoreState = AppState & { saveError: boolean } & StoreActions;
+type StoreState = AppState & { saveError: boolean; running: boolean; restoreError: string | null } & StoreActions;
+
+function refreshedState(state: AppState): AppState {
+  const assignments = { ...state.assignments };
+  for (const p of state.participants) {
+    if (assignments[p.id]) assignments[p.id] = refreshAssignmentFlags(assignments[p.id], p, state.candidates);
+  }
+  return { ...state, assignments };
+}
+
+let storageReadError: string | null = null;
 
 // 保存に失敗したら saveError を立てる（saveError 自体は保存しない）
 const safeStorage = {
   getItem: (key: string): string | null => {
     try {
-      return localStorage.getItem(key);
+      const raw = localStorage.getItem(key);
+      if (raw !== null) {
+        try { JSON.parse(raw); }
+        catch {
+          storageReadError = '保存中の作業データが壊れています。正常なバックアップを開いてください。';
+          return null;
+        }
+      }
+      return raw;
     } catch {
       return null;
     }
@@ -181,13 +131,15 @@ const safeStorage = {
 
 export const useStore = create<StoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialAppState(),
       saveError: false,
+      running: false,
+      restoreError: null,
 
       // 取り込んだら生成結果は空に戻す
       setParticipants: (participants: Participant[]) =>
-        set(() => ({ ...emptyGeneration(), participants, importedAt: new Date().toISOString() })),
+        set(() => { generationOperation.cancel(); return { ...emptyGeneration(), participants, importedAt: new Date().toISOString(), running: false }; }),
 
       patchGeneration: (snap: Partial<GenerationSnapshot>) =>
         set(() => {
@@ -212,7 +164,12 @@ export const useStore = create<StoreState>()(
         set((s) => {
           const current = s.assignments[participantId];
           if (!current) return {};
-          return { assignments: { ...s.assignments, [participantId]: { ...current, ...patch, edited: true } } };
+          const participant = s.participants.find(p => p.id === participantId);
+          if (!participant) return {};
+          const assignment = refreshAssignmentFlags({ ...current, ...patch, participantId, edited: true }, participant, s.candidates, {
+            personal: patch.personalTag !== undefined, shared: patch.sharedTagIds !== undefined,
+          });
+          return { assignments: { ...s.assignments, [participantId]: assignment } };
         }),
 
       addPersonalCandidates: (participantId: string, candidates: string[]) =>
@@ -227,17 +184,31 @@ export const useStore = create<StoreState>()(
         }),
 
       renameSharedTag: (tagId: string, label: string) =>
-        set((s) => ({ candidates: s.candidates.map((c) => (c.id === tagId ? { ...c, label } : c)) })),
+        set((s) => {
+          const candidates = s.candidates.map(c => c.id === tagId ? { ...c, label } : c);
+          const assignments = { ...s.assignments };
+          for (const p of s.participants) {
+            if (assignments[p.id]) assignments[p.id] = refreshAssignmentFlags(assignments[p.id], p, candidates);
+          }
+          return { candidates, assignments };
+        }),
 
       setPrintOptions: (patch: Partial<PrintOptions>) =>
         set((s) => ({ printOptions: { ...s.printOptions, ...patch } })),
 
-      replaceAll: (state: AppState) => set(() => ({ ...state })),
+      replaceAll: (state: AppState) => {
+        const parsed = appStateSchema.parse(state);
+        generationOperation.cancel();
+        storageReadError = null;
+        set(() => ({ ...refreshedState(parsed), running: false, restoreError: null }));
+      },
 
       resetGeneration: (scope: 'all' | 'shared') =>
         set((s) => {
-          if (scope === 'all') return { ...emptyGeneration() };
+          generationOperation.cancel();
+          if (scope === 'all') return { ...emptyGeneration(), running: false };
           return {
+            running: false,
             params: null,
             candidates: [],
             rankings: {},
@@ -251,11 +222,38 @@ export const useStore = create<StoreState>()(
           };
         }),
 
-      clearAll: () => set(() => ({ ...initialAppState(), saveError: false })),
+      clearAll: () => { generationOperation.cancel(); storageReadError = null; set(() => ({ ...initialAppState(), saveError: false, running: false, restoreError: null })); },
+
+      addParticipant: (p) => set((s) => s.running ? {} : applyAddParticipant(s, p)),
+
+      addLatecomer: (added) => set((s) => applyAddLatecomer(s, added)),
+
+      removeManualParticipant: (id) => set((s) => s.running ? {} : applyRemoveManual(s, id)),
+
+      setRunning: (v) => { if (!v) generationOperation.cancel(); set(() => ({ running: v })); },
+      beginOperation: () => {
+        if (get().running) return null;
+        const controller = generationOperation.begin();
+        if (controller) set({ running: true });
+        return controller;
+      },
+      finishOperation: (controller) => { if (generationOperation.finish(controller)) set({ running: false }); },
+      cancelOperation: () => { generationOperation.cancel(); set({ running: false }); },
     }),
     {
       name: 'nametag-app-v1',
       version: 1,
+      migrate: () => {
+        storageReadError = '保存データのバージョンに対応していません。正常なバックアップを開いてください。';
+        return initialAppState();
+      },
+      merge: (persisted, current) => {
+        if (persisted === undefined || persisted === null) return storageReadError ? { ...current, restoreError: storageReadError } : current;
+        const parsed = appStateSchema.safeParse(persisted);
+        return parsed.success
+          ? { ...current, ...refreshedState(parsed.data), restoreError: storageReadError }
+          : { ...current, restoreError: '保存中の作業データを読み込めませんでした。正常なバックアップを開いてください。' };
+      },
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         version: s.version,

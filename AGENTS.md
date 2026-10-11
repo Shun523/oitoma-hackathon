@@ -1,4 +1,4 @@
-実装は docs/spec.md に従う。小さな判断は docs/DECISIONS.md に1行ずつ記録する。
+実装は docs/spec.md に従う。追加の機能は docs/SPEC-ADD-1.md に従う。小さな判断は docs/DECISIONS.md に1行ずつ記録する。
 
 <!-- BEGIN:nextjs-agent-rules -->
 

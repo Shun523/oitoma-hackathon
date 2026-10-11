@@ -116,6 +116,24 @@ function make200(): SampleAnswer[] {
   }));
 }
 
+// 体験用15人（40人の中から話題が重なるように選ぶ。全員が自己紹介と一言あり・同意あり）。
+// 飲食店めぐり3、運動3、コーヒー・カフェ2、ゲーム2、AIを使った作業2、旅行・キャンプ2、堅い自己紹介2。
+// 小川たくみはAIと堅いの両方に数え、15人目は近い話題の村上ゆいとにした。
+const SAMPLE_15_NAMES = [
+  '山田さくら', '佐藤はると', '高橋れん', // 飲食店めぐり
+  '中村そうた', '小林りお', '加藤かいと', // 運動
+  '井上しょうた', '木村あかり', // コーヒー・カフェ
+  '森ひなた', '橋本ここな', // ゲーム
+  '山下さら', '小川たくみ', // AIを使った作業（小川は堅い自己紹介も兼ねる）
+  '藤田こうき', '村上ゆいと', // 旅行・キャンプ
+  '斎藤ゆずき', // 堅い自己紹介
+];
+
 const root = path.resolve(__dirname, '..');
+writeXlsx(path.join(root, 'public', 'samples', 'sample-15.xlsx'), SAMPLE_15_NAMES.map((name) => {
+  const found = SAMPLE_PARTICIPANTS_40.find((a) => a.name === name);
+  if (!found) throw new Error(`sample-15 にない名前: ${name}`);
+  return found;
+}));
 writeXlsx(path.join(root, 'public', 'samples', 'sample-40.xlsx'), SAMPLE_PARTICIPANTS_40);
 writeXlsx(path.join(root, 'public', 'samples', 'sample-200.xlsx'), make200());

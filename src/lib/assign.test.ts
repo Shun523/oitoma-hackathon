@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignSharedTags } from './assign';
+import { assignOne, assignSharedTags } from './assign';
 import { computeParams } from './sizing';
 
 const HAND = {
@@ -84,5 +84,40 @@ describe('assignSharedTags', () => {
       const expectedShort = participantIds.filter((pid) => (held[pid] ?? []).length < 2);
       expect([...shortIds].sort()).toEqual([...expectedShort].sort());
     }
+  });
+});
+
+describe('assignOne', () => {
+  it('picks the top two active tags from the ranking', () => {
+    expect(assignOne({ ranking: ['T3', 'T1', 'T5'], activeIds: ['T1', 'T2', 'T3'], counts: {} })).toEqual({
+      sharedTagIds: ['T3', 'T1'],
+      usedFallback: false,
+    });
+  });
+
+  it('fills with the least crowded tags when the ranking is short', () => {
+    const counts = { T1: 4, T2: 2, T3: 3 };
+    expect(assignOne({ ranking: ['T9'], activeIds: ['T1', 'T2', 'T3'], counts })).toEqual({
+      sharedTagIds: ['T2', 'T3'],
+      usedFallback: true,
+    });
+    expect(assignOne({ ranking: ['T2'], activeIds: ['T1', 'T2', 'T3'], counts })).toEqual({
+      sharedTagIds: ['T2', 'T3'],
+      usedFallback: true,
+    });
+  });
+
+  it('returns one tag when only one is active', () => {
+    expect(assignOne({ ranking: ['T9'], activeIds: ['T1'], counts: { T1: 4 } })).toEqual({
+      sharedTagIds: ['T1'],
+      usedFallback: true,
+    });
+  });
+
+  it('treats missing counts as zero', () => {
+    expect(assignOne({ ranking: [], activeIds: ['T1', 'T2', 'T3'], counts: { T1: 4, T3: 3 } })).toEqual({
+      sharedTagIds: ['T2', 'T3'],
+      usedFallback: true,
+    });
   });
 });

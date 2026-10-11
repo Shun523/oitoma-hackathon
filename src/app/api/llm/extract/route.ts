@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { isAdminEnabled } from '@/lib/admin';
 import { LlmError } from '@/lib/llm/client';
 import { extractApiSchema } from '@/lib/llm/schemas';
-import { directLlmApi } from '@/lib/llm/tasks';
+import { createDirectLlmApi } from '@/lib/llm/tasks';
 
 export const maxDuration = 120;
 
@@ -21,7 +21,7 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'bad_request', message: '入力が正しくありません' }, { status: 400 });
   }
   try {
-    const { results, missing, meta } = await directLlmApi.extract(parsed.data.people);
+    const { results, missing, meta } = await createDirectLlmApi(req.signal).extract(parsed.data.people);
     console.log(`[api] task=extract ms=${meta.ms} attempts=${meta.attempts} ok=true`);
     return NextResponse.json({ results, missing, meta });
   } catch (e) {
