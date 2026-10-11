@@ -1,7 +1,9 @@
 // src/lib/llm/client.ts
 // おいとま呼び出しの共通部（サーバー専用）。JSONの取り出し、検証、やり直し。
+import { elapsedMs } from '../time';
 import { z } from 'zod';
 import type { LlmCallLog } from '../types';
+import { getLlmLimiter, LlmQueueFullError } from './limiter';
 
 export type LlmMode = 'mock' | 'live';
 
@@ -76,8 +78,13 @@ export function extractJsonText(raw: string): string {
   return s.slice(first, last + 1);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const abort = (): void => { clearTimeout(timer); reject(signal?.reason); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, ms);
+    signal?.addEventListener('abort', abort, { once: true });
+  });
 }
 
 // 400のときに外して送り直す組み合わせ（試行回数に数えない）。
@@ -110,17 +117,25 @@ interface ChatMessage {
   content: string;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<{ res: Response; data: unknown }> {
   const controller = new AbortController();
+  const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const res = await fetch(url, { ...init, signal: requestSignal });
+    let data: unknown = null;
+    if (res.ok) {
+      try { data = await res.json(); }
+      catch (error) { if (!(error instanceof SyntaxError)) throw error; }
+    }
+    requestSignal.throwIfAborted();
+    return { res, data };
   } finally {
     clearTimeout(timer);
   }
 }
 
-export async function chatJson<T>(opts: {
+async function chatJsonUnqueued<T>(opts: {
   task: LlmCallLog['task'];
   system: string;
   user: string;
@@ -128,8 +143,9 @@ export async function chatJson<T>(opts: {
   temperature: number;
   maxTokens: number;
   validate?: (value: T) => string | null;
+  signal?: AbortSignal;
 }): Promise<{ value: T; attempts: number; ms: number }> {
-  const started = Date.now();
+  const started = performance.now();
   const baseUrl = getBaseUrl();
   const apiKey = getApiKey();
   const model = getLlmModel();
@@ -170,6 +186,7 @@ export async function chatJson<T>(opts: {
   let attempts = 0;
 
   for (;;) {
+    opts.signal?.throwIfAborted();
     attempts += 1;
     const body: Record<string, unknown> = {
       model,
@@ -186,8 +203,9 @@ export async function chatJson<T>(opts: {
     }
 
     let res: Response;
+    let data: unknown;
     try {
-      res = await fetchWithTimeout(
+      ({ res, data } = await fetchWithTimeout(
         url,
         {
           method: 'POST',
@@ -195,15 +213,17 @@ export async function chatJson<T>(opts: {
           body: JSON.stringify(body),
         },
         timeoutMs,
-      );
+        opts.signal,
+      ));
     } catch {
+      opts.signal?.throwIfAborted();
       // 通信エラー、タイムアウト：2秒、5秒と待ってやり直す。
       if (attempts >= 3) {
-        const ms = Date.now() - started;
+        const ms = elapsedMs(started);
         console.log(`[llm] task=${opts.task} ms=${ms} attempts=${attempts} ok=false`);
         throw new LlmError(CONNECTION_ERROR_MESSAGE, { status: 502 });
       }
-      await sleep(attempts === 1 ? 2000 : 5000);
+      await sleep(attempts === 1 ? 2000 : 5000, opts.signal);
       continue;
     }
 
@@ -214,40 +234,35 @@ export async function chatJson<T>(opts: {
       continue;
     }
     if (res.status === 401 || res.status === 403) {
-      const ms = Date.now() - started;
+      const ms = elapsedMs(started);
       console.log(`[llm] task=${opts.task} ms=${ms} attempts=${attempts} ok=false`);
       throw new LlmError(AUTH_ERROR_MESSAGE, { status: res.status });
     }
     if (res.status === 429 || res.status >= 500) {
       if (attempts >= 3) {
-        const ms = Date.now() - started;
+        const ms = elapsedMs(started);
         console.log(`[llm] task=${opts.task} ms=${ms} attempts=${attempts} ok=false`);
         throw new LlmError('おいとまが混み合っています。しばらく待ってやり直してください', { status: res.status });
       }
-      await sleep(attempts === 1 ? 2000 : 5000);
+      await sleep(attempts === 1 ? 2000 : 5000, opts.signal);
       continue;
     }
     if (!res.ok) {
-      const ms = Date.now() - started;
+      const ms = elapsedMs(started);
       console.log(`[llm] task=${opts.task} ms=${ms} attempts=${attempts} ok=false`);
       throw new LlmError(`おいとまの呼び出しに失敗しました（${res.status}）。`, { status: res.status });
     }
 
-    let data: unknown;
-    try {
-      data = await res.json();
-    } catch {
-      data = null;
-    }
     const content = (data as { choices?: { message?: { content?: unknown } }[] } | null)?.choices?.[0]?.message
       ?.content;
     const contentStr = typeof content === 'string' ? content : '';
+    opts.signal?.throwIfAborted();
 
     // 応答が空なら失敗として扱い、次の試行では max_tokens を3倍にする。
     if (!contentStr.trim()) {
       maxTokens *= 3;
       if (attempts >= 3) {
-        const ms = Date.now() - started;
+        const ms = elapsedMs(started);
         console.log(`[llm] task=${opts.task} ms=${ms} attempts=${attempts} ok=false`);
         throw new LlmError('おいとまの応答を読み取れませんでした：応答が空でした', { status: 502 });
       }
@@ -276,13 +291,13 @@ export async function chatJson<T>(opts: {
       }
       cachedBodyLevel = level;
       warnBodyLevelOnce(level);
-      const ms = Date.now() - started;
+      const ms = elapsedMs(started);
       console.log(`[llm] task=${opts.task} ms=${ms} attempts=${attempts} ok=true`);
       return { value: r.data, attempts, ms };
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       if (attempts >= 3) {
-        const ms = Date.now() - started;
+        const ms = elapsedMs(started);
         console.log(`[llm] task=${opts.task} ms=${ms} attempts=${attempts} ok=false`);
         throw new LlmError(`おいとまの応答を読み取れませんでした：${reason}`, { status: 502 });
       }
@@ -295,5 +310,16 @@ export async function chatJson<T>(opts: {
         },
       ];
     }
+  }
+}
+
+export async function chatJson<T>(opts: Parameters<typeof chatJsonUnqueued<T>>[0]): Promise<{ value: T; attempts: number; ms: number }> {
+  const started = performance.now();
+  try {
+    const result = await getLlmLimiter().run(() => chatJsonUnqueued(opts), opts.signal);
+    return { ...result, ms: elapsedMs(started) };
+  } catch (error) {
+    if (error instanceof LlmQueueFullError) throw new LlmError(error.message, { status: 503 });
+    throw error;
   }
 }

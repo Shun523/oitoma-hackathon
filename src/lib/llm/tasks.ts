@@ -1,6 +1,7 @@
 // src/lib/llm/tasks.ts
 // 5つのタスクの本体と directLlmApi（mock/live切り替え）（サーバー専用）。
 import { displayLength, sanitizeTag } from '../text';
+import { MAX_CATALOG_TAGS } from '../generation-params';
 import type {
   CatalogInput,
   ExtractInput,
@@ -12,7 +13,8 @@ import type {
   SharedTag,
 } from '../types';
 import { resolveMode } from './client';
-import { chatJson } from './client';
+import { getLlmLimiter, LlmQueueFullError } from './limiter';
+import { chatJson, LlmError } from './client';
 import { mockLlmApi } from './mock';
 import { catalogPrompt, extractPrompt, rankPrompt, regeneratePrompt, summaryPrompt } from './prompts';
 import {
@@ -53,6 +55,7 @@ function fallbackTopics(p: ExtractInput): string[] {
 
 async function liveExtract(
   people: ExtractInput[],
+  signal?: AbortSignal,
 ): Promise<{ results: ExtractResult[]; missing: string[]; meta: { attempts: number; ms: number } }> {
   const byId = new Map(people.map((p) => [p.id, p]));
   const clean = (
@@ -81,6 +84,7 @@ async function liveExtract(
     system: firstPrompt.system,
     user: firstPrompt.user,
     schema: extractOutputSchema,
+    signal,
     temperature: 0.7,
     maxTokens: 2000,
   });
@@ -96,6 +100,7 @@ async function liveExtract(
       system: retryPrompt.system,
       user: retryPrompt.user,
       schema: extractOutputSchema,
+      signal,
       temperature: 0.7,
       maxTokens: 2000,
     });
@@ -114,6 +119,7 @@ async function liveExtract(
 async function liveCatalog(
   people: CatalogInput[],
   params: GenerationParams,
+  signal?: AbortSignal,
 ): Promise<{ tags: { label: string; covers: string }[]; meta: { attempts: number; ms: number } }> {
   const lines = people.map((p) => `${p.id}: ${p.category} / ${p.topics.join(', ')}`);
   const prompt = catalogPrompt(lines, {
@@ -124,12 +130,13 @@ async function liveCatalog(
     candidateCount: params.candidateCount,
   });
   const minTags = Math.max(4, Math.floor(params.candidateCount * 0.6));
-  const maxTags = Math.floor(params.candidateCount * 1.2);
+  const maxTags = Math.min(MAX_CATALOG_TAGS, Math.floor(params.candidateCount * 1.2));
   const { value, attempts, ms } = await chatJson({
     task: 'catalog',
     system: prompt.system,
     user: prompt.user,
     schema: catalogOutputSchema,
+    signal,
     temperature: 0.4,
     maxTokens: 3000,
     validate: (v) => {
@@ -159,6 +166,7 @@ async function liveRank(
   tags: SharedTag[],
   people: RankInput[],
   rankLength: number,
+  signal?: AbortSignal,
 ): Promise<{ results: RankResult[]; missing: string[]; meta: { attempts: number; ms: number } }> {
   const validIds = new Set(tags.map((t) => t.id));
   const clean = (raw: { id: string; ranked: string[] }[], ids: Set<string>): Map<string, RankResult> => {
@@ -187,6 +195,7 @@ async function liveRank(
     system: firstPrompt.system,
     user: firstPrompt.user,
     schema: rankOutputSchema,
+    signal,
     temperature: 0.2,
     maxTokens: 2000,
   });
@@ -203,6 +212,7 @@ async function liveRank(
       system: retryPrompt.system,
       user: retryPrompt.user,
       schema: rankOutputSchema,
+      signal,
       temperature: 0.2,
       maxTokens: 2000,
     });
@@ -219,6 +229,7 @@ async function liveRank(
 
 async function liveSummary(
   tags: { label: string; count: number }[],
+  signal?: AbortSignal,
 ): Promise<{ text: string; meta: { attempts: number; ms: number } }> {
   const lines = tags.map((t) => `${t.label}（${t.count}人）`);
   const prompt = summaryPrompt(lines);
@@ -227,6 +238,7 @@ async function liveSummary(
     system: prompt.system,
     user: prompt.user,
     schema: summaryOutputSchema,
+    signal,
     temperature: 0.7,
     maxTokens: 600,
     validate: (v) => (v.text.trim() === '' ? 'まとめの文が空です。2〜3文で書いてください' : null),
@@ -237,6 +249,7 @@ async function liveSummary(
 async function liveRegenerate(
   person: ExtractInput & { topics: string[] },
   avoid: string[],
+  signal?: AbortSignal,
 ): Promise<{ personal: string[]; meta: { attempts: number; ms: number } }> {
   const prompt = regeneratePrompt(person, avoid);
   const { value, attempts, ms } = await chatJson({
@@ -244,6 +257,7 @@ async function liveRegenerate(
     system: prompt.system,
     user: prompt.user,
     schema: regenerateOutputSchema,
+    signal,
     temperature: 0.9,
     maxTokens: 400,
     validate: (v) => {
@@ -262,25 +276,36 @@ async function liveRegenerate(
   return { personal, meta: { attempts, ms } };
 }
 
-export const directLlmApi: LlmApi = {
-  async extract(people) {
-    if (resolveMode() === 'mock') return mockLlmApi.extract(people);
-    return liveExtract(people);
-  },
-  async catalog(people, params) {
-    if (resolveMode() === 'mock') return mockLlmApi.catalog(people, params);
-    return liveCatalog(people, params);
-  },
-  async rank(tags, people, rankLength) {
-    if (resolveMode() === 'mock') return mockLlmApi.rank(tags, people, rankLength);
-    return liveRank(tags, people, rankLength);
-  },
-  async summary(tags) {
-    if (resolveMode() === 'mock') return mockLlmApi.summary(tags);
-    return liveSummary(tags);
-  },
-  async regenerate(person, avoid) {
-    if (resolveMode() === 'mock') return mockLlmApi.regenerate(person, avoid);
-    return liveRegenerate(person, avoid);
-  },
-};
+export function createDirectLlmApi(signal?: AbortSignal): LlmApi {
+  const mockRun = async <T>(fn: () => Promise<T>): Promise<T> => {
+    try { return await getLlmLimiter().run(fn, signal); }
+    catch (error) {
+      if (error instanceof LlmQueueFullError) throw new LlmError(error.message, { status: 503 });
+      throw error;
+    }
+  };
+  return {
+    async extract(people) {
+      if (resolveMode() === 'mock') return mockRun(() => mockLlmApi.extract(people));
+      return liveExtract(people, signal);
+    },
+    async catalog(people, params) {
+      if (resolveMode() === 'mock') return mockRun(() => mockLlmApi.catalog(people, params));
+      return liveCatalog(people, params, signal);
+    },
+    async rank(tags, people, rankLength) {
+      if (resolveMode() === 'mock') return mockRun(() => mockLlmApi.rank(tags, people, rankLength));
+      return liveRank(tags, people, rankLength, signal);
+    },
+    async summary(tags) {
+      if (resolveMode() === 'mock') return mockRun(() => mockLlmApi.summary(tags));
+      return liveSummary(tags, signal);
+    },
+    async regenerate(person, avoid) {
+      if (resolveMode() === 'mock') return mockRun(() => mockLlmApi.regenerate(person, avoid));
+      return liveRegenerate(person, avoid, signal);
+    },
+  };
+}
+
+export const directLlmApi = createDirectLlmApi();

@@ -1,6 +1,7 @@
 // src/lib/pipeline/add-one.ts
 // タグを作った後に1人だけ追加する生成。話題の読み取りと共有タグ選びはおいとま、
 // 割り当てはプログラム。他の人の値と採用タグは変えない。ストアには触らない。
+import { elapsedMs } from '../time';
 import { PIPELINE } from '../../config/event';
 import { assignOne } from '../assign';
 import type { Assignment, Extraction, LlmApi, LlmCallLog, Participant, SharedTag } from '../types';
@@ -32,10 +33,11 @@ export async function generateForOne(args: {
   // 1. 話題の読み取り
   checkAborted(signal);
   onStep('extract', 'running');
-  const extractStarted = Date.now();
+  const extractStarted = performance.now();
   let extraction: Extraction;
   try {
     const { results, meta } = await api.extract([toExtractInput(person)]);
+    checkAborted(signal);
     extraction = results[0] !== undefined
       ? {
           participantId: person.id,
@@ -49,21 +51,23 @@ export async function generateForOne(args: {
     checkAborted(signal);
     throw e;
   }
-  onStep('extract', 'done', Date.now() - extractStarted);
+  onStep('extract', 'done', elapsedMs(extractStarted));
 
   // 2. 共有タグを選ぶ（採用タグ2個未満なら rank を呼ばない）
   checkAborted(signal);
   onStep('rank', 'running');
-  const rankStarted = Date.now();
+  const rankStarted = performance.now();
   let ranking: string[] = [];
   if (activeTagIds.length >= 2) {
-    const activeTags = candidates.filter((c) => activeTagIds.includes(c.id));
+    const tags = new Map(candidates.map(c => [c.id, c]));
+    const activeTags = activeTagIds.map(id => tags.get(id)).filter((t): t is SharedTag => t !== undefined);
     try {
       const { results, meta } = await api.rank(
         activeTags,
-        [{ id: person.id, category: person.category, topics: extraction.topics, hobby: person.hobby }],
+        [{ id: person.id, category: person.category, topics: extraction.topics, hobby: person.consent ? person.hobby : '' }],
         PIPELINE.rankLength,
       );
+      checkAborted(signal);
       ranking = results[0]?.ranked ?? [];
       onLog(makeLog('rank', meta));
     } catch (e) {
@@ -71,12 +75,12 @@ export async function generateForOne(args: {
       throw e;
     }
   }
-  onStep('rank', 'done', Date.now() - rankStarted);
+  onStep('rank', 'done', elapsedMs(rankStarted));
 
   // 3. 割り当て
   checkAborted(signal);
   onStep('assign', 'running');
-  const assignStarted = Date.now();
+  const assignStarted = performance.now();
   const counts: Record<string, number> = {};
   for (const tid of activeTagIds) counts[tid] = 0;
   for (const id of Object.keys(assignments)) {
@@ -86,7 +90,7 @@ export async function generateForOne(args: {
   }
   const { sharedTagIds, usedFallback } = assignOne({ ranking, activeIds: activeTagIds, counts });
   const assignment = buildAssignment(person, extraction, sharedTagIds, usedFallback, candidates);
-  onStep('assign', 'done', Date.now() - assignStarted);
+  onStep('assign', 'done', elapsedMs(assignStarted));
 
   return { extraction, ranking, assignment };
 }

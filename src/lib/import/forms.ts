@@ -74,10 +74,10 @@ function mapCategory(value: string): Category {
 
 const CONSENT_NEGATIVES = ['しない', 'いいえ', '不可', 'no'];
 
-export function toParticipants(
+export function previewParticipants(
   sheet: SheetData,
   map: ColumnMap,
-): { participants: Participant[]; skippedEmptyName: number; warnings: string[] } {
+): { participants: Participant[]; skippedEmptyName: number; warnings: string[]; validationError: string | null } {
   const warnings: string[] = [];
   const cell = (row: string[], key: FieldKey): string => {
     const col = map[key];
@@ -121,11 +121,17 @@ export function toParticipants(
     });
   }
 
-  if (participants.length < 6) {
-    throw new Error(`取り込む参加者が6人未満です（${participants.length}人）。回答が6人以上あるExcelを選んでください`);
-  }
-  if (participants.length > 300) {
-    throw new Error(`取り込む参加者が300人を超えています（${participants.length}人）。300人以下に絞ってください`);
-  }
-  return { participants, skippedEmptyName, warnings };
+  let validationError: string | null = null;
+  if (map.name === undefined) validationError = '名前の列を選んでください。名前がないと受付で渡せません';
+  else if (participants.length < 6) validationError = `取り込む参加者が6人未満です（${participants.length}人）。回答が6人以上あるExcelを選んでください`;
+  else if (participants.length > 300) validationError = `取り込む参加者が300人を超えています（${participants.length}人）。300人以下に絞ってください`;
+  return { participants, skippedEmptyName, warnings, validationError };
+}
+
+export function toParticipants(sheet: SheetData, map: ColumnMap): {
+  participants: Participant[]; skippedEmptyName: number; warnings: string[];
+} {
+  const { validationError, ...preview } = previewParticipants(sheet, map);
+  if (validationError) throw new Error(validationError);
+  return preview;
 }

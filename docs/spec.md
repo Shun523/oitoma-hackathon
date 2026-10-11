@@ -6,6 +6,18 @@ Oct 9, 2026 · @しーたけ
 
 **この仕様書だけで、Next.jsのWebアプリを実装し、モック（偽のおいとま）で最後まで動かせるようにする。生成と印刷は学内ネットワークかOU-VPNにつないだPCで動かし、Vercelには公開トップだけを置く。** 実装はOpenCode上のAIエージェント（Muse Spark 1.3）が行い、キーの設定・実データの扱い・公開作業は人が行う。
 
+### 2026-10-11の運用・レビュー修正
+
+ユーザーの追加指示により、以下は本文の古い記述に優先する。追加機能は [SPEC-ADD-1.md](SPEC-ADD-1.md)、詳しい判断は [DECISIONS.md](DECISIONS.md) を参照する。
+
+- 管理画面と生成APIも、ngrokで認証と許可メール一覧を付けて外部利用できる。[NGROK.md](NGROK.md) の手順に従う。API通信はngrokを経由する。Vercelの公開トップのみの構成は維持する。
+- 同時生成は1つのNode.jsプロセス全体で3件、待機は最大60件・120秒とする。各ブラウザのデータは独立し、共有編集はしない。中止はfetch・待機キューへ伝え、旧実行は新しい作業状態を更新しない。
+- 共有タグ候補は最大40個で統一する。詳細設定は候補4〜40、順位1〜10、下限2以上かつ人数以下、上限は下限以上とする。
+- 印刷画面は24面のみ（旧21面の保存値は復元可能）。Y補正の既定は2mm。本番の横2mm間隔・先頭X位置を維持し、試し刷りも同じ位置に合わせる。すき間Xは2mmに加える補正値とし、すべてのページの上端は用紙の全8段を基準にする。試し刷りは対象人数・開始段によらず全24枠を1枚に描く。
+- 名前列の判定や人数の検証が失敗しても、列割り当てを残す。正常になるまで取り込みの確定を無効にする。
+- タグ編集・バックアップ復元時に確認フラグを再評価する。手で個性／共有タグを直すと対応する代替作成フラグを解消し、未回答・同意なしは参加者の内容から判定する。
+- バックアップとブラウザ保存の復元は、IDの一意性・参照先・文字数・数値範囲を検証する。正常な途中生成と旧版の参加者形式は受け入れ、不正データでは現在の作業を置き換えない。経過時間は時計補正に影響されない時計で測り、旧版の負の計測値は0に補正して復元する。
+
 ### エージェントの進め方
 
 1. 人がこの仕様書をMarkdownで書き出し（図は書き出されないが、本文だけで実装できるように書いてある）、新しい空のフォルダに `docs/SPEC.md` として置く。エージェントは段階0で、`create-next-app` が作る `AGENTS.md`（なければ新しく作る）の先頭に「実装は docs/SPEC.md に従う。小さな判断は docs/DECISIONS.md に1行ずつ記録する」と追記する。
@@ -360,7 +372,7 @@ export const STICKER_COLS = 3;
 export const STICKER_CAPTION_PT = 6.5;
 
 export const DEFAULT_PRINT_OPTIONS: PrintOptions = {
-  preset: 'label24', showCount: false, offsetXmm: 0, offsetYmm: 0, gapXmm: 0, gapYmm: 0,
+  preset: 'label24', showCount: false, offsetXmm: 0, offsetYmm: 2, gapXmm: 0, gapYmm: 0,
 };
 ```
 
@@ -370,7 +382,7 @@ export const DEFAULT_PRINT_OPTIONS: PrintOptions = {
 - storage は `getItem`・`setItem`・`removeItem` を try/catch で包んだものを使う。保存に失敗したら `saveError` を立て、管理画面の上部に「ブラウザに保存できませんでした。データ画面から状態を書き出してください」と出す。
 - 操作（action）：`setParticipants`（生成結果も空に戻す）、`patchGeneration`（`GenerationSnapshot` の一部を反映）、`appendLlmLog`（200件を超えたら古いものから捨てる）、`updateAssignment`（`edited: true` にする）、`renameSharedTag`、`setPrintOptions`、`replaceAll`（読み込んだJSONで置き換え）、`resetGeneration('all' | 'shared')`、`clearAll`。
 - 指標は保存せず、`computeMetrics` で毎回計算する。生成中かどうか（実行中フラグ）は保存しない。
-- `appStateSchema`（zod）を同じファイルに置き、JSONの読み込み時に検証する。
+- `appStateSchema`（zod）を `src/lib/state-schema.ts` に置き、JSON読み込みとlocalStorage復元時に検証する（store.tsからも再exportする）。
 - 復元を待つための `useHydrated()` フックを用意する（`persist.hasHydrated()` と `onFinishHydration` を使う）。
 
 ## 画面仕様
@@ -745,7 +757,7 @@ export async function chatJson<T>(opts: {
 | タスク | temperature | max\_tokens | 出力後の整え方と検査 |
 | --- | --- | --- | --- |
 | extract | 0.7 | 2000 | 入力にないidは捨てる。topicsは「#」と前後の空白を除き15文字以内のものだけ、重複を除いて5個まで。空なら一言（15文字まで）か区分名。personalは `sanitizeTag` して1〜12文字のもの、重複を除いて3個まで。返らなかった人だけで1回だけ再要求し、それでも返らない人を `missing` に入れる |
-| catalog | 0.4 | 3000 | labelを `sanitizeTag` し、1〜12文字以外と重複を捨てる。coversは30文字で切る。残りが `max(4, floor(候補数×0.6))` 個未満なら検査不合格（理由：「候補が○個しかありません。○個作ってください」）。多すぎれば候補数×1.2個までにする |
+| catalog | 0.4 | 3000 | labelを `sanitizeTag` し、1〜12文字以外と重複を捨てる。coversは30文字で切る。残りが `max(4, floor(候補数×0.6))` 個未満なら検査不合格（理由：「候補が○個しかありません。○個作ってください」）。多すぎれば `min(40, floor(候補数×1.2))` 個までにする |
 | rank | 0.2 | 2000 | 候補にないidと重複を捨て、`rankLength` 個までにする。有効なidが2個未満の人は返らなかった扱い。extractと同じく1回だけ再要求し、残りを `missing` に |
 | summary | 0.7 | 600 | 空なら不合格。200文字で切る |
 | regenerate | 0.9 | 400 | `sanitizeTag` して1〜12文字、`avoid` と同じものを除く。1個も残らなければ不合格 |
@@ -944,7 +956,8 @@ interface StickerProps {
 
 - 用紙はA4縦（210×297mm）。1行に1人分、1枚に `rows` 人。入りきらない分は次の用紙へ。並びは取り込み順。
 - 並びの左上の位置：左 `(210 − 3×w − 2×gapX) / 2 + offsetX` mm、上 `(297 − rows×h − (rows−1)×gapY) / 2 + offsetY` mm。
-- 試し刷りモードでは、中身を描かず各ラベルの外枠だけを0.2mmの線で描く。
+- 横の実間隔は `2 + gapX` mm。先頭位置は既存本番の式を維持し、試し刷りと本番で共有する。上の式の `rows` は実人数ではなく用紙全段数。
+- 試し刷りモードでは、対象人数・開始段によらず全8段・24枠を1枚に描き、各ラベルの外枠を0.2mmの線で描く。
 
 ### 印刷用CSS
 

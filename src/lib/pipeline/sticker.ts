@@ -29,3 +29,17 @@ export function buildAssignment(
     flags,
   };
 }
+
+export function refreshAssignmentFlags(
+  assignment: Assignment, participant: Participant, candidates: SharedTag[],
+  edited: { personal?: boolean; shared?: boolean } = {},
+): Assignment {
+  const flags: Assignment['flags'] = [];
+  if (participant.intro === '' && participant.hobby === '') flags.push('no_answer');
+  if (!participant.consent) flags.push('no_consent');
+  const labels = new Map(candidates.map(t => [t.id, t.label]));
+  if (hasNgWord(assignment.personalTag) || assignment.sharedTagIds.some(id => hasNgWord(labels.get(id) ?? ''))) flags.push('ng_word');
+  if (!edited.personal && assignment.flags.includes('fallback_personal')) flags.push('fallback_personal');
+  if (assignment.sharedTagIds.length < 2 || (!edited.shared && assignment.flags.includes('fallback_shared'))) flags.push('fallback_shared');
+  return { ...assignment, flags };
+}

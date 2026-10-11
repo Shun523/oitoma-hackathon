@@ -5,6 +5,7 @@ import { PIPELINE } from '../../config/event';
 import { assignSharedTags } from '../assign';
 import { mapLimit } from '../concurrency';
 import { computeParams } from '../sizing';
+import { MAX_CATALOG_TAGS, normalizeGenerationParams } from '../generation-params';
 import { buildAssignment } from './sticker';
 import type {
   Assignment,
@@ -61,12 +62,12 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 function fallbackTopics(p: Participant): string[] {
-  if (p.hobby.trim() !== '') return [p.hobby.trim().slice(0, 15)];
+  if (p.consent && p.hobby.trim() !== '') return [p.hobby.trim().slice(0, 15)];
   return [p.category];
 }
 
 export function toExtractInput(p: Participant): ExtractInput {
-  return { id: p.id, affiliation: p.affiliation, category: p.category, intro: p.intro, hobby: p.hobby };
+  return { id: p.id, affiliation: p.affiliation, category: p.category, intro: p.consent ? p.intro : '', hobby: p.consent ? p.hobby : '' };
 }
 
 export function fallbackExtraction(p: Participant): Extraction {
@@ -86,6 +87,7 @@ export async function runGeneration(args: {
 }): Promise<GenerationSnapshot> {
   const { participants, start, api, onUpdate, signal } = args;
   const n = participants.length;
+  if (n > PIPELINE.maxParticipants) throw new Error('参加者は300人以下にしてください');
   if (n < PIPELINE.minParticipants) {
     throw new Error(
       `対象が${PIPELINE.minParticipants}人未満です（${n}人）。回答が${PIPELINE.minParticipants}人以上ある状態で生成してください`,
@@ -93,14 +95,14 @@ export async function runGeneration(args: {
   }
 
   const checkAborted = (): void => {
-    if (signal?.aborted) throw new Error('中止しました');
+    if (signal?.aborted) throw new DOMException('中止しました', 'AbortError');
   };
 
-  const params = start.params?.n === n ? start.params : computeParams(n);
+  const params = normalizeGenerationParams(n, start.params?.n === n ? start.params : {});
   const snap: GenerationSnapshot = {
     params,
     extractions: { ...start.extractions },
-    candidates: [...start.candidates],
+    candidates: start.candidates.slice(0, MAX_CATALOG_TAGS),
     rankings: { ...start.rankings },
     activeTagIds: [...start.activeTagIds],
     assignments: { ...start.assignments },
@@ -112,6 +114,7 @@ export async function runGeneration(args: {
   snap.progress[2].done = participants.filter((p) => snap.rankings[p.id]).length;
 
   const emit = (log?: LlmCallLog): void => {
+    if (signal?.aborted) return;
     onUpdate(
       {
         ...snap,
@@ -138,30 +141,33 @@ export async function runGeneration(args: {
   };
 
   // 段階1：話題の読み取り（extractions にない人だけ）
+  checkAborted();
   setPhase('extract', 'running', { startedAt: Date.now() });
+  emit();
   const missingExtract = participants.filter((p) => !snap.extractions[p.id]);
   try {
     await mapLimit(chunk(missingExtract, PIPELINE.extractBatchSize), PIPELINE.concurrency, async (batch) => {
-    checkAborted();
-    const inputs: ExtractInput[] = batch.map(toExtractInput);
-    const { results, missing, meta } = await api.extract(inputs);
-    for (const r of results) {
-      snap.extractions[r.id] = {
-        participantId: r.id,
-        topics: r.topics.slice(0, 5),
-        personalCandidates: r.personal.slice(0, 3),
-        source: 'llm',
-      };
-    }
-    for (const id of missing) {
-      const p = batch.find((b) => b.id === id);
-      if (!p) continue;
-      snap.extractions[id] = fallbackExtraction(p);
-    }
-    const phase = snap.progress.find((p) => p.key === 'extract');
-    if (phase) phase.done = participants.filter((p) => snap.extractions[p.id]).length;
-    emit(makeLog('extract', meta));
-  });
+      checkAborted();
+      const inputs: ExtractInput[] = batch.map(toExtractInput);
+      const { results, missing, meta } = await api.extract(inputs);
+      checkAborted();
+      for (const r of results) {
+        snap.extractions[r.id] = {
+          participantId: r.id,
+          topics: r.topics.slice(0, 5),
+          personalCandidates: r.personal.slice(0, 3),
+          source: 'llm',
+        };
+      }
+      for (const id of missing) {
+        const p = batch.find((b) => b.id === id);
+        if (!p) continue;
+        snap.extractions[id] = fallbackExtraction(p);
+      }
+      const phase = snap.progress.find((p) => p.key === 'extract');
+      if (phase) phase.done = participants.filter((p) => snap.extractions[p.id]).length;
+      emit(makeLog('extract', meta));
+    });
   } catch (e) {
     if (!signal?.aborted) {
       setPhase('extract', 'error', { message: e instanceof Error ? e.message : String(e) });
@@ -169,11 +175,14 @@ export async function runGeneration(args: {
     }
     throw e;
   }
+  checkAborted();
   setPhase('extract', 'done', { finishedAt: Date.now() });
   emit();
 
   // 段階2：共有タグの候補づくり（candidates が空のときだけ）
+  checkAborted();
   setPhase('catalog', 'running', { startedAt: Date.now() });
+  emit();
   if (snap.candidates.length === 0) {
     const inputs: CatalogInput[] = participants.map((p) => ({
       id: p.id,
@@ -182,7 +191,8 @@ export async function runGeneration(args: {
     }));
     try {
       const { tags, meta } = await api.catalog(inputs, params);
-      snap.candidates = tags.map((t, i) => ({
+      checkAborted();
+      snap.candidates = tags.slice(0, MAX_CATALOG_TAGS).map((t, i) => ({
         id: `T${String(i + 1).padStart(2, '0')}`,
         label: t.label,
         covers: t.covers,
@@ -190,6 +200,7 @@ export async function runGeneration(args: {
       setPhase('catalog', 'done', { done: 1, finishedAt: Date.now() });
       emit(makeLog('catalog', meta));
     } catch (e) {
+      checkAborted();
       setPhase('catalog', 'error', { message: e instanceof Error ? e.message : String(e) });
       emit();
       throw e;
@@ -200,28 +211,31 @@ export async function runGeneration(args: {
   emit();
 
   // 段階3：タグの当てはまり順（rankings にない人だけ）
+  checkAborted();
   setPhase('rank', 'running', { startedAt: Date.now() });
+  emit();
   const missingRank = participants.filter((p) => !snap.rankings[p.id]);
   try {
     await mapLimit(chunk(missingRank, PIPELINE.rankBatchSize), PIPELINE.concurrency, async (batch) => {
-    checkAborted();
-    const inputs: RankInput[] = batch.map((p) => ({
-      id: p.id,
-      category: p.category,
-      topics: snap.extractions[p.id]?.topics ?? [],
-      hobby: p.hobby,
-    }));
-    const { results, missing, meta } = await api.rank(snap.candidates, inputs, params.rankLength);
-    for (const r of results) {
-      snap.rankings[r.id] = r.ranked;
-    }
-    for (const id of missing) {
-      snap.rankings[id] = [];
-    }
-    const phase = snap.progress.find((p) => p.key === 'rank');
-    if (phase) phase.done = participants.filter((p) => snap.rankings[p.id]).length;
-    emit(makeLog('rank', meta));
-  });
+      checkAborted();
+      const inputs: RankInput[] = batch.map((p) => ({
+        id: p.id,
+        category: p.category,
+        topics: snap.extractions[p.id]?.topics ?? [],
+        hobby: p.consent ? p.hobby : '',
+      }));
+      const { results, missing, meta } = await api.rank(snap.candidates, inputs, params.rankLength);
+      checkAborted();
+      for (const r of results) {
+        snap.rankings[r.id] = r.ranked;
+      }
+      for (const id of missing) {
+        snap.rankings[id] = [];
+      }
+      const phase = snap.progress.find((p) => p.key === 'rank');
+      if (phase) phase.done = participants.filter((p) => snap.rankings[p.id]).length;
+      emit(makeLog('rank', meta));
+    });
   } catch (e) {
     if (!signal?.aborted) {
       setPhase('rank', 'error', { message: e instanceof Error ? e.message : String(e) });
@@ -229,17 +243,19 @@ export async function runGeneration(args: {
     }
     throw e;
   }
+  checkAborted();
   setPhase('rank', 'done', { finishedAt: Date.now() });
   emit();
 
   // 段階4：割り当てと検証（毎回やり直す。計算だけで速い）
   setPhase('assign', 'running', { startedAt: Date.now() });
   checkAborted();
+  emit();
   const participantIds = participants.map((p) => p.id);
   const byId = new Map(participants.map((p) => [p.id, p]));
   const candidateIds = snap.candidates.map((c) => c.id);
   const labelById = new Map(snap.candidates.map((c) => [c.id, c.label]));
-  const { held, activeIds, shortIds } = assignSharedTags({
+  const { held, activeIds: assignedActiveIds, shortIds } = assignSharedTags({
     participantIds,
     rankings: snap.rankings,
     candidateIds,
@@ -249,6 +265,13 @@ export async function runGeneration(args: {
   const heldTags: Record<string, string[]> = { ...held };
   // 当てはまり順ではなく人数合わせで足した人は fallback_shared を付ける
   const programFilled = new Set<string>();
+  const activeIds = [...assignedActiveIds];
+  // 順位が欠けて採用タグが不足した場合も、2つ以上の候補で補充する。
+  for (const tid of candidateIds) {
+    if (activeIds.length >= 2) break;
+    if (!activeIds.includes(tid)) activeIds.push(tid);
+  }
+  if (activeIds.length !== assignedActiveIds.length) shortIds.forEach(id => programFilled.add(id));
 
   // 足りない人の補充：shortIds の人だけ、候補を activeIds に絞ってもう一度 rank を呼ぶ
   if (shortIds.length > 0) {
@@ -257,19 +280,20 @@ export async function runGeneration(args: {
     const extraRank: Record<string, string[]> = {};
     try {
       await mapLimit(chunk(shorts, PIPELINE.rankBatchSize), PIPELINE.concurrency, async (batch) => {
-      checkAborted();
-      const inputs: RankInput[] = batch.map((p) => ({
-        id: p.id,
-        category: p.category,
-        topics: snap.extractions[p.id]?.topics ?? [],
-        hobby: p.hobby,
-      }));
-      const { results, meta } = await api.rank(activeTags, inputs, params.rankLength);
-      for (const r of results) {
-        extraRank[r.id] = r.ranked.filter((tid) => activeIds.includes(tid));
-      }
-      emit(makeLog('rank', meta));
-    });
+        checkAborted();
+        const inputs: RankInput[] = batch.map((p) => ({
+          id: p.id,
+          category: p.category,
+          topics: snap.extractions[p.id]?.topics ?? [],
+          hobby: p.consent ? p.hobby : '',
+        }));
+        const { results, meta } = await api.rank(activeTags, inputs, params.rankLength);
+        checkAborted();
+        for (const r of results) {
+          extraRank[r.id] = r.ranked.filter((tid) => activeIds.includes(tid));
+        }
+        emit(makeLog('rank', meta));
+      });
     } catch (e) {
       if (!signal?.aborted) {
         setPhase('assign', 'error', { message: e instanceof Error ? e.message : String(e) });
@@ -317,7 +341,9 @@ export async function runGeneration(args: {
   emit();
 
   // 段階5：会場の傾向まとめ（summary が空のときだけ。失敗は skipped）
+  checkAborted();
   setPhase('summary', 'running', { startedAt: Date.now() });
+  emit();
   if (!snap.summary) {
     const counts = new Map<string, number>();
     for (const tid of activeIds) counts.set(tid, 0);
@@ -330,10 +356,12 @@ export async function runGeneration(args: {
       .slice(0, 8);
     try {
       const { text, meta } = await api.summary(top);
+      checkAborted();
       snap.summary = text;
       setPhase('summary', 'done', { done: 1, finishedAt: Date.now() });
       emit(makeLog('summary', meta));
     } catch (e) {
+      checkAborted();
       setPhase('summary', 'skipped', {
         finishedAt: Date.now(),
         message: e instanceof Error ? e.message : String(e),
