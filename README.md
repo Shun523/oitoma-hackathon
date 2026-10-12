@@ -15,7 +15,7 @@ npm install
 npm run build && npm start
 ```
 
-Chromeで `http://127.0.0.1:3000/admin` を開きます（`/admin` は `/admin/import` に送ります）。`LLM_MODE` が未設定でキーもないため、偽のおいとま（mock）で全機能が動きます。
+Chromeで `http://127.0.0.1:3000/admin` を開きます（`/admin` は `/admin/import` に送ります）。`LLM_MODE` と接続先 `OITOMA_BASE_URL` が未設定なら、偽のおいとま（mock）で全機能が動きます。
 
 ## 学内のPCでのセットアップ
 
@@ -31,13 +31,16 @@ cp .env.example .env.local
 `.env.local` を編集します（このファイルはgitに入れません）：
 
 ```bash
-LLM_MODE=live
 OITOMA_BASE_URL=https://…/ai/v1
 OITOMA_API_KEY=<おいとまで発行したキー>
 OITOMA_MODEL=qwen3.8-27b-it
 ```
 
 `OITOMA_API_KEY` が空なら、導入手順で設定したユーザー環境変数 `OKAYAMA_API_KEY` を使います。`OITOMA_JSON_MODE` と `OITOMA_EXTRA_BODY` は分からなければ既定のままでかまいません（受け付けない場合は自動で外して送り直します）。
+
+`LLM_MODE` は通常指定しません。`OITOMA_BASE_URL` が空ならmock、設定済みならliveになります。キーだけを設定してもliveには切り替わりません。接続設定を残して練習するときだけ `LLM_MODE=mock` を指定します。既存の `.env.local` やシェルに `LLM_MODE=mock` がある場合、自動判定を使うにはその指定を削除または解除してください。設定変更はサーバーの再起動で反映され、再ビルドは不要です。
+
+接続先が設定済みでも、サーバーPCが学外でVPNにつながっていない場合などはliveのまま接続に失敗します。通信を最大3回試し、失敗すると学内ネットワークかOU-VPNの確認を案内します。自動でmockへ切り替わることはありません。まとめて生成した途中の結果は保存され、接続を直して「続きから作る」で再開できます。生成後の1人追加は、失敗したら参加者を追加せず、入力を残します。保存済みの結果の読み込み・確認・印刷にはおいとまへの接続は要りません。
 
 ## おいとまの接続確認
 

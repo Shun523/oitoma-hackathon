@@ -61,7 +61,7 @@ Windows PowerShell：
 Copy-Item .env.example .env.local
 ```
 
-最初は `.env.local` の `LLM_MODE=mock` で、ダミーだけを使って接続と操作を確認する。
+最初は `.env.local` に `LLM_MODE=mock` を指定し（ひな形の該当行のコメントを外す）、ダミーだけを使って接続と操作を確認する。
 
 管理画面の公開では **`VERCEL=1` を設定しない**。このアプリはその値が1なら管理画面とAPIを404にする。以前Vercel相当の確認をしたシェルなら、その変数を解除する。
 
@@ -152,10 +152,9 @@ curl -i -H "ngrok-skip-browser-warning: 1" -H "Content-Type: application/json" -
 
 ## 7. 本物のおいとまに切り替える
 
-mockの操作確認が終わったらアプリをCtrl+Cで止め、サーバーPCを学内ネットワークかOU-VPNにつなぐ。`.env.local` を手元で編集する。
+mockの操作確認が終わったらアプリをCtrl+Cで止め、サーバーPCを学内ネットワークかOU-VPNにつなぐ。`.env.local` の `LLM_MODE=mock` を削除またはコメントに戻し、次の接続設定を手元で入力する。接続先があれば自動でliveになる。
 
 ```dotenv
-LLM_MODE=live
 OITOMA_BASE_URL=手元のおいとまマニュアルにある接続先
 OITOMA_API_KEY=手元で発行したキー
 OITOMA_MODEL=qwen3.8-27b-it

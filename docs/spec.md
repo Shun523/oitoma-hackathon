@@ -723,7 +723,9 @@ export interface LlmApi {
 
 ### モードの決め方
 
-`LLM_MODE` が `mock` か `live` ならそれに従う。未設定なら、`OITOMA_BASE_URL` があれば `live`、なければ `mock`。`live` なのにキーかモデル名がなければ `/api/health` が `ok: false` と理由を返す。
+通常は `LLM_MODE` を指定せず、`.env.example` でもコメントだけにする。`LLM_MODE` が `mock` か `live` ならそれに従う。未設定なら、`OITOMA_BASE_URL` があれば `live`、なければ `mock`。キーだけではliveに切り替わらない。`live` なのにキーかモデル名がなければ `/api/health?ping=1` が `ok: false` と理由を返す。
+
+接続先が設定済みでも、学外・VPN未接続などで通信に失敗した場合はliveのまま、下記のやり直し後に接続エラーを返す。自動でmockへ切り替えない。接続設定を残して練習するときは `LLM_MODE=mock` を明示する。
 
 キーは `OITOMA_API_KEY`、未設定なら `OKAYAMA_API_KEY`（導入手順でWindowsのユーザー環境変数に入れたもの）を使う。`OKAYAMA_API_KEY` を使うときは、設定後に開き直したシェルから `npm run dev` などを起動する。
 
@@ -1036,8 +1038,9 @@ interface StickerProps {
 ### `.env.example`
 
 ```bash
-# 動作モード：mock（偽のおいとま）| live（本物）。未設定なら OITOMA_BASE_URL の有無で決まる
-LLM_MODE=mock
+# 動作モードは通常指定不要。OITOMA_BASE_URL が空ならmock、設定済みならlive
+# 接続設定があっても練習モードにしたいときだけ、次の行のコメントを外す
+# LLM_MODE=mock
 
 # おいとま（OpenAI互換API）。末尾の /chat/completions は付けない
 # 値はおいとまマニュアルの https://…/ai/v1。リポジトリに載せないため、ここは空にしておく
