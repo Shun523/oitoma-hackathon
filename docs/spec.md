@@ -1065,7 +1065,7 @@ OITOMA_TIMEOUT_MS=90000
   "build": "next build",
   "start": "next start -H 127.0.0.1",
   "lint": "eslint",
-  "typecheck": "tsc --noEmit",
+  "typecheck": "next typegen && tsc --noEmit -p tsconfig.typecheck.json",
   "test": "vitest run",
   "samples": "tsx scripts/make-samples.ts",
   "llm:check": "node --env-file-if-exists=.env.local --import tsx scripts/check-llm.ts",
@@ -1075,6 +1075,8 @@ OITOMA_TIMEOUT_MS=90000
 ```
 
 `lint` はcreate-next-appが作った中身のままでよい。`--env-file-if-exists` はNode.js 22.9以上で使える（`.env.local` がなくても止まらない）。Windowsでも動くよう、環境変数をコマンドの前に書く形（`LLM_MODE=mock node …`）は使わない。Vercelは `build` だけを使うので、`-H` は影響しない。
+
+`typecheck` は現在のブランチのルート型を `next typegen` で再生成する。検証用の `tsconfig.typecheck.json` は通常の設定を継承し、古いブランチの参照が残りうる `.next/dev/types` を除外する。`next.config.ts` は本番ビルド時にもこの設定を使う。アプリと新しい `.next/types` の型検査は行う。
 
 ### `scripts/check-llm.ts`（MUST、人が学内で実行）
 
