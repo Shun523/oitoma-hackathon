@@ -1,0 +1,152 @@
+{
+  "issues": [],
+  "pages": [
+    {
+      "slide": 1,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-01.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 2,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-02.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 3,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-03.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 4,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-04.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 5,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-05.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 6,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-06.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 7,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-07.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 8,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-08.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 9,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-09.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    },
+    {
+      "slide": 10,
+      "width_pt": 960.0094604492188,
+      "height_pt": 540.0,
+      "preview": "previews/slide-10.png",
+      "fonts": [
+        "IPAexGothic"
+      ]
+    }
+  ],
+  "notes_complete": true,
+  "embedded_notes_count": 10,
+  "total_main_seconds": 240,
+  "body_counts": [
+    {
+      "slide": 1,
+      "body_characters": 45,
+      "seconds": 20
+    },
+    {
+      "slide": 2,
+      "body_characters": 36,
+      "seconds": 30
+    },
+    {
+      "slide": 3,
+      "body_characters": 50,
+      "seconds": 25
+    },
+    {
+      "slide": 4,
+      "body_characters": 49,
+      "seconds": 45
+    },
+    {
+      "slide": 5,
+      "body_characters": 54,
+      "seconds": 40
+    },
+    {
+      "slide": 6,
+      "body_characters": 78,
+      "seconds": 35
+    },
+    {
+      "slide": 7,
+      "body_characters": 60,
+      "seconds": 30
+    },
+    {
+      "slide": 8,
+      "body_characters": 38,
+      "seconds": 15
+    },
+    {
+      "slide": 9,
+      "body_characters": 52,
+      "seconds": 0
+    },
+    {
+      "slide": 10,
+      "body_characters": 74,
+      "seconds": 0
+    }
+  ],
+  "minimum_content_font_pt": 24,
+  "pptx_native_shapes": true
+}
