@@ -2,6 +2,7 @@
 // 公開トップの対話部分（絞り込み、もっと見る）。スマホ最優先。管理画面と同じ雰囲気。
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { adminFont } from '@/app/admin/fonts';
 import { EVENT } from '../config/event';
@@ -33,6 +34,15 @@ export function PublicTop({ data }: { data: PublishedData }): React.JSX.Element 
             登録時の自己紹介から、おいとまが会場全体を見比べて“話しかけたくなるタグ”を作ります
           </p>
         </section>
+
+        <div>
+          <Link
+            href="/admin"
+            className="inline-flex min-h-12 items-center justify-center rounded-lg bg-black px-6 text-adm-body font-bold text-white transition-colors hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-adm-primary"
+          >
+            管理ページへ
+          </Link>
+        </div>
 
         <section className="space-y-3">
           <h2 className="text-adm-lead font-bold">話題シール</h2>
