@@ -1,449 +1,469 @@
 {
   "version": 1,
   "eventName": "オープンイノベーションMatch Up 交流会（デモ）",
-  "generatedAt": "2026-10-10T13:05:25.727Z",
+  "generatedAt": "2026-10-15T10:55:05.477Z",
   "stickers": [
     {
       "id": "P001",
-      "name": "山田さくら",
-      "affiliation": "文学部",
-      "personalTag": "休日のラーメン屋巡り",
+      "name": "参加者01",
+      "affiliation": "その他",
+      "personalTag": "詩人目指してぼんやり",
       "sharedTags": [
-        "ごはん屋開拓勢",
-        "岡山を開拓中"
+        "自然が大好き",
+        "読書好きです"
       ]
     },
     {
       "id": "P002",
-      "name": "佐藤はると",
-      "affiliation": "工学部",
-      "personalTag": "岡山のカレー屋開拓",
+      "name": "参加者02",
+      "affiliation": "その他",
+      "personalTag": "天体望遠鏡再始動",
       "sharedTags": [
         "ごはん屋開拓勢",
-        "岡山を開拓中"
+        "映画ドラマ好き"
       ]
     },
     {
       "id": "P003",
-      "name": "鈴木みずき",
-      "affiliation": "教育学部",
-      "personalTag": "パンを焼き始めた",
+      "name": "参加者03",
+      "affiliation": "学生",
+      "personalTag": "芸人の人生を研究",
       "sharedTags": [
-        "教えるのが好き",
-        "ごはん屋開拓勢"
+        "楽器やってます",
+        "旅行計画中です"
       ]
     },
     {
       "id": "P004",
-      "name": "高橋れん",
-      "affiliation": "〇〇食品株式会社",
-      "personalTag": "行列店の食べ歩き",
+      "name": "参加者04",
+      "affiliation": "その他",
+      "personalTag": "自作ゲーム大賞",
       "sharedTags": [
-        "ごはん屋開拓勢",
-        "教えるのが好き"
+        "ゲーム好きです",
+        "読書好きです"
       ]
     },
     {
       "id": "P005",
-      "name": "田中あおい",
-      "affiliation": "法学部",
-      "personalTag": "カフェでパンを食べる",
+      "name": "参加者05",
+      "affiliation": "その他",
+      "personalTag": "パンはご飯より",
       "sharedTags": [
-        "コーヒーがないと無理",
-        "ごはん屋開拓勢"
+        "猫と暮らしてます",
+        "散歩が日課です"
       ]
     },
     {
       "id": "P006",
-      "name": "伊藤ゆうと",
-      "affiliation": "総務課",
-      "personalTag": "飲食店めぐり",
+      "name": "参加者06",
+      "affiliation": "企業",
+      "personalTag": "自転車で探索中",
       "sharedTags": [
-        "ごはん屋開拓勢",
-        "教えるのが好き"
+        "散歩が日課です",
+        "ゲーム好きです"
       ]
     },
     {
       "id": "P007",
-      "name": "渡辺かりん",
-      "affiliation": "岡山市役所",
-      "personalTag": "新店のラーメン屋巡り",
+      "name": "参加者07",
+      "affiliation": "その他",
+      "personalTag": "ドラム独学中",
       "sharedTags": [
-        "ごはん屋開拓勢",
-        "岡山を開拓中"
+        "映画ドラマ好き",
+        "楽器やってます"
       ]
     },
     {
       "id": "P008",
-      "name": "中村そうた",
-      "affiliation": "理学部",
-      "personalTag": "走った後の朝カフェ",
+      "name": "参加者08",
+      "affiliation": "その他",
+      "personalTag": "庭でBBQ中",
       "sharedTags": [
-        "体を動かしたい",
-        "コーヒーがないと無理"
+        "自然が大好き",
+        "映画ドラマ好き"
       ]
     },
     {
       "id": "P009",
-      "name": "小林りお",
-      "affiliation": "工学部",
-      "personalTag": "筋トレ",
+      "name": "参加者09",
+      "affiliation": "学生",
+      "personalTag": "朝ごはん抜き生活",
       "sharedTags": [
-        "体を動かしたい",
-        "岡山を開拓中"
+        "散歩が日課です",
+        "ごはん屋開拓勢"
       ]
     },
     {
       "id": "P010",
-      "name": "加藤かいと",
-      "affiliation": "環境生命科学研究科",
-      "personalTag": "登山",
+      "name": "参加者10",
+      "affiliation": "その他",
+      "personalTag": "楽譜読めず手探りで",
       "sharedTags": [
-        "体を動かしたい",
-        "教えるのが好き"
+        "ゲーム好きです",
+        "楽器やってます"
       ]
     },
     {
       "id": "P011",
-      "name": "吉田ほのか",
-      "affiliation": "教育学部",
-      "personalTag": "週末の山歩き",
+      "name": "参加者11",
+      "affiliation": "その他",
+      "personalTag": "味噌は食べられない",
       "sharedTags": [
-        "教えるのが好き",
-        "体を動かしたい"
+        "旅行計画中です",
+        "料理します"
       ]
     },
     {
       "id": "P012",
-      "name": "山本だいき",
-      "affiliation": "文学部",
-      "personalTag": "朝ヨガ",
+      "name": "参加者12",
+      "affiliation": "学生",
+      "personalTag": "豚肉は絶対に食べない",
       "sharedTags": [
-        "体を動かしたい",
-        "教えるのが好き"
+        "読書好きです",
+        "楽器やってます"
       ]
     },
     {
       "id": "P013",
-      "name": "松本ゆな",
-      "affiliation": "附属図書館",
-      "personalTag": "附属図書館好き",
+      "name": "参加者13",
+      "affiliation": "その他",
+      "personalTag": "寝すぎが最大の敵",
       "sharedTags": [
-        "教えるのが好き",
+        "ゲーム好きです",
         "ごはん屋開拓勢"
       ]
     },
     {
       "id": "P014",
-      "name": "井上しょうた",
-      "affiliation": "経済学部",
-      "personalTag": "コーヒーの飲み比べ",
+      "name": "参加者14",
+      "affiliation": "学生",
+      "personalTag": "毎朝セットに時間",
       "sharedTags": [
-        "コーヒーがないと無理",
-        "教えるのが好き"
+        "ゲーム好きです",
+        "ごはん屋開拓勢"
       ]
     },
     {
       "id": "P015",
-      "name": "木村あかり",
-      "affiliation": "入試課",
-      "personalTag": "カフェ開拓",
+      "name": "参加者15",
+      "affiliation": "その他",
+      "personalTag": "朝のスマホ断捨離",
       "sharedTags": [
-        "教えるのが好き",
-        "コーヒーがないと無理"
+        "読書好きです",
+        "自然が大好き"
       ]
     },
     {
       "id": "P016",
-      "name": "林ゆうき",
-      "affiliation": "〇〇商事株式会社",
-      "personalTag": "〇〇商事株式会社好き",
+      "name": "参加者16",
+      "affiliation": "その他",
+      "personalTag": "ネバネバは苦手です",
       "sharedTags": [
-        "教えるのが好き",
-        "コーヒーがないと無理"
+        "車好きです",
+        "旅行計画中です"
       ]
     },
     {
       "id": "P017",
-      "name": "清水めい",
-      "affiliation": "農学部",
-      "personalTag": "農学部好き",
+      "name": "参加者17",
+      "affiliation": "学生",
+      "personalTag": "毎朝掃除してます",
       "sharedTags": [
-        "教えるのが好き",
-        "コーヒーがないと無理"
+        "車好きです",
+        "体を動かしてる"
       ]
     },
     {
       "id": "P018",
-      "name": "森ひなた",
-      "affiliation": "工学部",
-      "personalTag": "夜更かしゲーム",
+      "name": "参加者18",
+      "affiliation": "その他",
+      "personalTag": "ロードバイク乗ってます",
       "sharedTags": [
-        "ゲームで夜更かし",
-        "教えるのが好き"
+        "散歩が日課です",
+        "猫と暮らしてます"
       ]
     },
     {
       "id": "P019",
-      "name": "池田りく",
-      "affiliation": "理学部",
-      "personalTag": "ゲーム実況を見る",
+      "name": "参加者19",
+      "affiliation": "その他",
+      "personalTag": "リコーダー吹きます",
       "sharedTags": [
-        "ゲームで夜更かし",
-        "岡山を開拓中"
+        "料理します",
+        "読書好きです"
       ]
     },
     {
       "id": "P020",
-      "name": "橋本ここな",
-      "affiliation": "〇〇システムズ株式会社",
-      "personalTag": "新作ゲームの発売待ち",
+      "name": "参加者20",
+      "affiliation": "その他",
+      "personalTag": "適当料理が旨い",
       "sharedTags": [
-        "ゲームで夜更かし",
-        "岡山を開拓中"
+        "料理します",
+        "楽器やってます"
       ]
     },
     {
       "id": "P021",
-      "name": "石川れお",
-      "affiliation": "附属図書館",
-      "personalTag": "ボードゲーム",
+      "name": "参加者21",
+      "affiliation": "その他",
+      "personalTag": "イラスト描きます",
       "sharedTags": [
-        "ゲームで夜更かし",
-        "岡山を開拓中"
+        "ゲーム好きです",
+        "読書好きです"
       ]
     },
     {
       "id": "P022",
-      "name": "山下さら",
-      "affiliation": "工学部",
-      "personalTag": "AIに頼りがち",
+      "name": "参加者22",
+      "affiliation": "その他",
+      "personalTag": "異世界物にハマる",
       "sharedTags": [
-        "AIに頼りがち",
-        "体を動かしたい"
+        "ゲーム好きです",
+        "読書好きです"
       ]
     },
     {
       "id": "P023",
-      "name": "小川たくみ",
-      "affiliation": "医歯薬学総合研究科",
-      "personalTag": "ChatGPTの活用研究",
+      "name": "参加者23",
+      "affiliation": "その他",
+      "personalTag": "業務スーパー巡り",
       "sharedTags": [
-        "AIに頼りがち",
-        "体を動かしたい"
+        "猫と暮らしてます",
+        "ごはん屋開拓勢"
       ]
     },
     {
       "id": "P024",
-      "name": "前田みお",
-      "affiliation": "〇〇電機株式会社",
-      "personalTag": "AIツールの試し使い",
+      "name": "参加者24",
+      "affiliation": "その他",
+      "personalTag": "二輪免許持ってます",
       "sharedTags": [
-        "AIに頼りがち",
-        "岡山を開拓中"
+        "車好きです",
+        "料理します"
       ]
     },
     {
       "id": "P025",
-      "name": "岡田しゅん",
-      "affiliation": "文学部",
-      "personalTag": "生成AI作曲",
+      "name": "参加者25",
+      "affiliation": "その他",
+      "personalTag": "メダカの観察中",
       "sharedTags": [
-        "AIに頼りがち",
-        "岡山を開拓中"
+        "自然が大好き",
+        "散歩が日課です"
       ]
     },
     {
       "id": "P026",
-      "name": "長谷川りん",
-      "affiliation": "法学部",
-      "personalTag": "青春18きっぷの旅",
+      "name": "参加者26",
+      "affiliation": "その他",
+      "personalTag": "カレー巡り中",
       "sharedTags": [
-        "岡山を開拓中",
-        "ごはん屋開拓勢"
+        "ごはん屋開拓勢",
+        "映画ドラマ好き"
       ]
     },
     {
       "id": "P027",
-      "name": "藤田こうき",
-      "affiliation": "教育学部",
-      "personalTag": "登山もする週末キャンプ",
+      "name": "参加者27",
+      "affiliation": "その他",
+      "personalTag": "ピアノ弾いてます",
       "sharedTags": [
-        "教えるのが好き",
-        "体を動かしたい"
+        "楽器やってます",
+        "ごはん屋開拓勢"
       ]
     },
     {
       "id": "P028",
-      "name": "後藤ななみ",
-      "affiliation": "岡山県庁",
-      "personalTag": "旅に出たい",
+      "name": "参加者28",
+      "affiliation": "その他",
+      "personalTag": "ウィンドサーフィン",
       "sharedTags": [
-        "岡山を開拓中",
-        "体を動かしたい"
+        "猫と暮らしてます",
+        "自然が大好き"
       ]
     },
     {
       "id": "P029",
-      "name": "村上ゆいと",
-      "affiliation": "〇〇建設株式会社",
-      "personalTag": "週末アウトドア",
+      "name": "参加者29",
+      "affiliation": "その他",
+      "personalTag": "タイへ行くため",
       "sharedTags": [
-        "岡山を開拓中",
-        "ごはん屋開拓勢"
+        "ごはん屋開拓勢",
+        "旅行計画中です"
       ]
     },
     {
       "id": "P030",
-      "name": "近藤あんな",
-      "affiliation": "環境生命科学研究科",
-      "personalTag": "猫の写真を撮る",
+      "name": "参加者30",
+      "affiliation": "学生",
+      "personalTag": "ランニング習慣",
       "sharedTags": [
-        "岡山を開拓中",
-        "ごはん屋開拓勢"
+        "体を動かしてる",
+        "自然が大好き"
       ]
     },
     {
       "id": "P031",
-      "name": "坂本そら",
-      "affiliation": "農学部",
-      "personalTag": "早朝散歩と朝活",
+      "name": "参加者31",
+      "affiliation": "その他",
+      "personalTag": "16時間断食中",
       "sharedTags": [
-        "体を動かしたい",
-        "ごはん屋開拓勢"
+        "散歩が日課です",
+        "自然が大好き"
       ]
     },
     {
       "id": "P032",
-      "name": "大野つむぎ",
-      "affiliation": "学生支援課",
-      "personalTag": "動物の動画を見る",
+      "name": "参加者32",
+      "affiliation": "学生",
+      "personalTag": "夜型作業派",
       "sharedTags": [
-        "教えるのが好き",
-        "ごはん屋開拓勢"
+        "楽器やってます",
+        "自然が大好き"
       ]
     },
     {
       "id": "P033",
-      "name": "田村かえで",
-      "affiliation": "教育学部",
-      "personalTag": "弁当づくり",
+      "name": "参加者33",
+      "affiliation": "その他",
+      "personalTag": "ハワイ行き準備中",
       "sharedTags": [
-        "体を動かしたい",
-        "ごはん屋開拓勢"
+        "旅行計画中です",
+        "映画ドラマ好き"
       ]
     },
     {
       "id": "P034",
-      "name": "金子はるき",
-      "affiliation": "岡山市役所",
-      "personalTag": "家庭菜園",
+      "name": "参加者34",
+      "affiliation": "その他",
+      "personalTag": "34年勤め退いた",
       "sharedTags": [
-        "岡山を開拓中",
-        "体を動かしたい"
+        "体を動かしてる",
+        "映画ドラマ好き"
       ]
     },
     {
       "id": "P035",
-      "name": "斎藤ゆずき",
-      "affiliation": "農学部",
-      "personalTag": "ぬか漬けづくり",
+      "name": "参加者35",
+      "affiliation": "その他",
+      "personalTag": "ダンス11年目",
       "sharedTags": [
-        "体を動かしたい",
+        "旅行計画中です",
         "ごはん屋開拓勢"
       ]
     },
     {
       "id": "P036",
-      "name": "佐々木あやと",
-      "affiliation": "理学部",
-      "personalTag": "早起きして散歩",
+      "name": "参加者36",
+      "affiliation": "その他",
+      "personalTag": "毎日日記書いてる",
       "sharedTags": [
-        "体を動かしたい",
-        "ごはん屋開拓勢"
+        "料理します",
+        "体を動かしてる"
       ]
     },
     {
       "id": "P037",
-      "name": "山口ことね",
-      "affiliation": "〇〇銀行",
-      "personalTag": "夜更かし読書",
+      "name": "参加者37",
+      "affiliation": "その他",
+      "personalTag": "牡蠣はポン酢派",
       "sharedTags": [
-        "体を動かしたい",
-        "岡山を開拓中"
+        "映画ドラマ好き",
+        "ごはん屋開拓勢"
       ]
     },
     {
       "id": "P038",
-      "name": "松田いぶき",
-      "affiliation": "経済学部",
-      "personalTag": "朝ごはんづくり",
+      "name": "参加者38",
+      "affiliation": "その他",
+      "personalTag": "3秒で眠れます",
       "sharedTags": [
-        "体を動かしたい",
-        "岡山を開拓中"
+        "楽器やってます",
+        "体を動かしてる"
       ]
     },
     {
       "id": "P039",
-      "name": "井口せな",
-      "affiliation": "文学部",
-      "personalTag": "文学部好き",
+      "name": "参加者39",
+      "affiliation": "その他",
+      "personalTag": "安産が得意です",
       "sharedTags": [
-        "教えるのが好き",
-        "コーヒーがないと無理"
+        "猫と暮らしてます",
+        "散歩が日課です"
       ]
     },
     {
       "id": "P040",
-      "name": "宮本のあ",
-      "affiliation": "教育学部",
-      "personalTag": "教育好き",
+      "name": "参加者40",
+      "affiliation": "その他",
+      "personalTag": "ガレージ付き夢",
       "sharedTags": [
-        "教えるのが好き",
-        "コーヒーがないと無理"
+        "車好きです",
+        "ゲーム好きです"
       ]
     }
   ],
   "sharedTags": [
     {
-      "label": "教えるのが好き",
-      "count": 16
-    },
-    {
       "label": "ごはん屋開拓勢",
-      "count": 16
+      "count": 10
     },
     {
-      "label": "体を動かしたい",
-      "count": 16
-    },
-    {
-      "label": "岡山を開拓中",
-      "count": 16
-    },
-    {
-      "label": "コーヒーがないと無理",
+      "label": "楽器やってます",
       "count": 8
     },
     {
-      "label": "ゲームで夜更かし",
-      "count": 4
+      "label": "ゲーム好きです",
+      "count": 8
     },
     {
-      "label": "AIに頼りがち",
+      "label": "自然が大好き",
+      "count": 8
+    },
+    {
+      "label": "散歩が日課です",
+      "count": 7
+    },
+    {
+      "label": "映画ドラマ好き",
+      "count": 7
+    },
+    {
+      "label": "読書好きです",
+      "count": 7
+    },
+    {
+      "label": "旅行計画中です",
+      "count": 6
+    },
+    {
+      "label": "猫と暮らしてます",
+      "count": 5
+    },
+    {
+      "label": "体を動かしてる",
+      "count": 5
+    },
+    {
+      "label": "料理します",
+      "count": 5
+    },
+    {
+      "label": "車好きです",
       "count": 4
     }
   ],
   "metrics": {
     "participants": 40,
-    "sharedTagCount": 7,
-    "matesMin": 16,
-    "matesMedian": 25,
-    "matesMax": 27,
-    "encounterRate": 0.5807692307692308,
+    "sharedTagCount": 12,
+    "matesMin": 7,
+    "matesMedian": 12,
+    "matesMax": 16,
+    "encounterRate": 0.2948717948717949,
     "sizeMin": 4,
-    "sizeMax": 16,
-    "needsReview": 5
+    "sizeMax": 10,
+    "needsReview": 0
   },
-  "summary": "今日は『教えるのが好き』『ごはん屋開拓勢』の仲間が多い会場です。話題シールのタグを見て、気軽に話しかけてみましょう。"
+  "summary": "ごはん屋開拓勢や散歩派など、日常の趣味系タグがずらり。共通点を見つけて「あ、これ好きですよね」と気軽に話しかけてみてください。自然やゲーム、映画など話題は尽きないので、ぜひ声をかけてみてください。"
 }
