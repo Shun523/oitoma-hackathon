@@ -4,6 +4,8 @@ Formsの回答Excelを取り込み、おいとまで「個性タグ1つ＋共有
 
 実装の確認結果は [実装レビュー](docs/IMPLEMENTATION-REVIEW.md)、管理画面を利用者限定で外部公開する手順は [ngrok手順書](docs/NGROK.md)、次の作業と機能改善の方針は [今後の進め方](docs/IMPROVEMENT-PLAN.md) を参照してください。ngrokで公開トップを更新するときは、`src/data/published.json` の置き換え後にビルドと再起動が必要です。
 
+2026-10-14の運用方針では、Vercelへのデプロイは行わず、学内ネットワークかOU-VPNにつないだPCをngrokで公開します。公開トップ・管理画面・生成APIをGoogle認証で保護し、許可した利用者に全ページを提供します。公開中はPC、アプリ、ngrokを起動し続けます。
+
 おいとまのAPIキーと実際の回答データは、コード・コミット・AIへの指示文に書かないでください。Contributor Free版のAIはプロンプトと出力が学習に使われる条件で動いています。
 
 2026-10-12に画面・印刷を含む `ui` を `main` に統合しました。このREADMEの画面操作とngrok運用は `main` が対象です。起動前に `git switch main` で切り替えてください。開発は引き続き基盤・API・文書を `main`、画面操作・表示・印刷を `ui` で進めます。
@@ -77,7 +79,7 @@ npm run pipeline -- --file public/samples/sample-40.xlsx --mock --out private/re
 npm run pipeline -- --mock --file public/samples/sample-40.xlsx --publish src/data/published.json --no-mask
 ```
 
-## Vercelへのデプロイ（公開トップだけ）
+## Vercelへのデプロイ（参考・今回の運用では使わない）
 
 1. リポジトリを**個人の**GitHubアカウントに置きます（HobbyプランはOrganizationと接続できません）。
 2. Vercelで「Add New → Project」からImportします。Framework PresetはNext.jsのまま。環境変数は設定しません。
