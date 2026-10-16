@@ -10,6 +10,63 @@ Formsの回答Excelを取り込み、おいとまで「個性タグ1つ＋共有
 
 2026-10-12に画面・印刷を含む `ui` を `main` に統合しました。このREADMEの画面操作とngrok運用は `main` が対象です。起動前に `git switch main` で切り替えてください。開発は引き続き基盤・API・文書を `main`、画面操作・表示・印刷を `ui` で進めます。
 
+## 技術構成
+
+Next.js 16（App Router）・React 19・TypeScript・Tailwind CSS 4・Zustand・zod・SheetJS・Vitest。ngrokで公開する今の運用の構成です。
+
+```mermaid
+flowchart TB
+  forms[/"Formsの回答Excel（.xlsx）"/]
+
+  subgraph browser["ブラウザ（主催者のChrome、またはngrok経由で許可された利用者）"]
+    parse["取り込み<br/>SheetJSでExcelを解析"]
+    store[("状態の保存<br/>Zustand＋localStorage")]
+    out["確認・印刷・書き出し<br/>/admin/review・print・data"]
+    orch["生成の指揮 lib/pipeline/run.ts<br/>人数で分割・同時3件・進捗・再開"]
+    calc["割り当てと指標<br/>lib/assign.ts・metrics.ts"]
+  end
+
+  ngrok["ngrok（HTTPS）<br/>Google認証で許可したメールだけ通す<br/>画面の取得もAPIもここを通る"]
+  printer[/"A4・24面ラベル用紙（話題シール）"/]
+  exported[/"published.json（名前を伏せた公開用）"/]
+
+  subgraph campus["学内ネットワーク（OU-VPNを含む）"]
+    subgraph pc["主催者PC"]
+      subgraph srv["Next.js サーバー（next start、127.0.0.1:3000）"]
+        api["APIルート /api/llm/*<br/>zodで入力を検証、回答は保存しない"]
+        tasks["lib/llm/tasks.ts<br/>プロンプトの組み立て・出力の整形<br/>CLIの scripts/ からも直接呼ぶ"]
+        llmclient["lib/llm/client.ts<br/>同時3件の待ち行列・最大3回のやり直し・JSONの取り出し"]
+        mock["mock（偽のおいとま）"]
+        top["公開トップ /<br/>ビルド時に静的生成"]
+      end
+      data[("src/data/published.json")]
+    end
+    oitoma["おいとま（学内のLLM）<br/>OpenAI互換 /chat/completions"]
+  end
+
+  forms --> parse --> store
+  store <--> orch
+  orch -->|"POST /api/llm/*（外部から）"| ngrok
+  ngrok -->|"127.0.0.1:3000 へ転送"| api
+  orch -.->|"主催者PC上では直接"| api
+  orch --> calc
+  store --> out
+  out -->|"Chromeで印刷"| printer
+  out -->|"書き出し"| exported
+  exported -->|"置き換えて npm run build"| data
+  data -->|"ビルド時に取り込み"| top
+
+  api --> tasks
+  tasks -->|"mock"| mock
+  tasks -->|"live"| llmclient
+  llmclient -->|"APIキーは .env.local"| oitoma
+```
+
+- **生成の指揮はブラウザ側**：話題の読み取りは8人ずつ、当てはまり順は15人ずつAPIを呼ぶので、1回の呼び出しが短くタイムアウトに強く、途中から再開できます。共有タグの割り当てと人数の検証もブラウザのプログラムが行い、おいとまには言葉の処理（話題の読み取り、候補づくり、当てはまり順、まとめ、別案）だけを任せます。
+- **サーバーは中継だけ**：参加者データを保存しません。回答・編集・生成結果は各ブラウザのlocalStorageにあり、ブラウザ間では同期されません。
+- **mockとlive**：`LLM_MODE` が未設定なら、`OITOMA_BASE_URL` があればlive、なければmockになります（詳しくは下の「学内のPCでのセットアップ」）。
+- **公開トップは静的ページ**：`published.json` をビルド時に取り込むので、置き換えたら `npm run build`（または `npm run verify`）をして `npm start` を起動し直します。
+
 ## すぐ試す（おいとまなし）
 
 ```bash
